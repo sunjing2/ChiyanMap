@@ -154,7 +154,7 @@ inline void getBiomeTints(std::string const& biomeName, mce::Color& grass, mce::
 }
 
 inline mce::Color getBlockColor(std::string const& name, mce::Color grassCol, mce::Color foliageCol, mce::Color waterCol) {
-    if (name.find("air") != std::string::npos || name.find("barrier") != std::string::npos || name.find("light_block") != std::string::npos) return mce::Color(0.0f,  0.0f,  0.0f,  0.0f);
+    if (name == "minecraft:air" || name == "air" || name.find("barrier") != std::string::npos || name.find("light_block") != std::string::npos) return mce::Color(0.0f,  0.0f,  0.0f,  0.0f);
     if (name.find("glass") != std::string::npos) return mce::Color(0.8f, 0.9f, 0.9f, 0.3f);
     if (name.find("path") != std::string::npos || name.find("farmland") != std::string::npos) return mce::Color(0.55f, 0.40f, 0.20f, 1.0f);
     if (name.find("bamboo") != std::string::npos) return mce::Color(0.40f, 0.70f, 0.20f, 1.0f);
