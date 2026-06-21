@@ -1,87 +1,80 @@
+name: Auto Release
+
 on:
-  release:
-    types:
-      - published
-  
+  push:
+    # 监听以 'v' 开头的 tag 推送，例如 v1.0.0
+    tags:
+      - 'v*'
+
 jobs:
   build:
+    name: Build Project
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target_type:
-          - client
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - uses: xmake-io/github-action-setup-xmake@v1
-        # with:
-        #   xmake-version: branch@master
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
 
-      - uses: actions/cache@v5
+      - name: Cache xmake dependencies
+        uses: actions/cache@v4
         with:
-          path: |
-            ~/AppData/Local/.xmake
+          path: ~/AppData/Local/.xmake
           key: xmake-${{ hashFiles('xmake.lua') }}
-          restore-keys: |
-            xmake-
+          restore-keys: xmake-
 
-      - run: |
-          xmake repo -u
+      - name: Update xmake repository
+        run: xmake repo -u
 
-      - run: |
-          xmake f -a x64 -m release -p windows --target_type=${{ matrix.target_type }} -y
+      - name: Configure xmake
+        # 直接固定 target_type=client，移除多端编译机制
+        run: xmake f -a x64 -m release -p windows --target_type=client -y
 
-      - run: |
-          xmake
+      - name: Build
+        run: xmake
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.repository.name }}-${{ github.sha }}-${{ matrix.target_type }}-windows-x64
-          path: |
-            bin/
+          name: ${{ github.event.repository.name }}-${{ github.sha }}-client-windows-x64
+          path: bin/
 
-  update-release-notes:
+  release:
+    name: Create Release
+    needs: build
     permissions:
-      contents: write
+      contents: write # 授予自动创建 Release 的权限
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - id: extract-release-notes
-        uses: ffurrer2/extract-release-notes@v3
-
-      - uses: softprops/action-gh-release@v3
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
         with:
-          body: |
-            ${{ steps.extract-release-notes.outputs.release_notes }}
-
-  upload-to-release:
-    needs:
-      - build
-      - update-release-notes
-    permissions:
-      contents: write
-    strategy:
-      matrix:
-        target_type:
-          - client
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: ${{ github.event.repository.name }}-${{ github.sha }}-${{ matrix.target_type }}-windows-x64
+          name: ${{ github.event.repository.name }}-${{ github.sha }}-client-windows-x64
           path: artifact
 
-      - run: |
-          cp CHANGELOG.md LICENSE README.md artifact/
+      - name: Package Release Archive
+        run: |
+          # 复制重要文件到产物目录中
+          cp CHANGELOG.md LICENSE README.md artifact/ 2>/dev/null || true
+          cd artifact
+          # 打包为 ZIP 压缩包
+          zip -r ../${{ github.event.repository.name }}-client-windows-x64.zip *
 
-      - run: |
-          zip -r ../${{ github.event.repository.name }}-${{ matrix.target_type }}-windows-x64.zip *
-        working-directory: artifact
+      - name: Extract Release Notes
+        id: extract-release-notes
+        uses: ffurrer2/extract-release-notes@v2
+        continue-on-error: true # 容错，防止没有CHANGELOG导致流程中断
 
-      - uses: softprops/action-gh-release@v3
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ github.event.repository.name }}-${{ matrix.target_type }}-windows-x64.zip
+          tag_name: ${{ github.ref_name }} # 使用触发工作流的 Tag 作为版本号
+          name: Release ${{ github.ref_name }}
+          body: ${{ steps.extract-release-notes.outputs.release_notes || '系统自动发布的客户端版本。' }}
+          files: ${{ github.event.repository.name }}-client-windows-x64.zip
+          draft: false      # 设为 false 则直接发布；若设为 true 则是草稿
+          prerelease: false # 如果是预览版，可以改为 true
