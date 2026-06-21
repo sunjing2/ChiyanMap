@@ -1,3 +1,5 @@
+name: Build
+
 on:
   pull_request:
   push:
@@ -6,18 +8,15 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target_type:
-          - client
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - uses: xmake-io/github-action-setup-xmake@v1
-        # with:
-        #   xmake-version: branch@master
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
       
-      - uses: actions/cache@v5
+      - name: Cache xmake dependencies
+        uses: actions/cache@v4
         with:
           path: |
             ~/AppData/Local/.xmake
@@ -25,17 +24,18 @@ jobs:
           restore-keys: |
             xmake-
 
-      - run: |
-          xmake repo -u
+      - name: Update xmake repository
+        run: xmake repo -u
 
-      - run: |
-          xmake f -a x64 -m release -p windows -v --target_type=${{ matrix.target_type }} -y
+      - name: Configure xmake (Client Only)
+        # 去除了 --target_type 参数，因为 xmake.lua 已经硬编码为纯客户端模式
+        run: xmake f -a x64 -m release -p windows -y
 
-      - run: |
-          xmake
+      - name: Build
+        run: xmake
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.repository.name }}-${{ github.sha }}-${{ matrix.target_type }}-windows-x64
-          path: |
-            bin/
+          name: ${{ github.event.repository.name }}-${{ github.sha }}-client-windows-x64
+          path: bin/
