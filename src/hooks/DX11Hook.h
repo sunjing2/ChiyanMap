@@ -167,8 +167,16 @@ namespace DX11Hook {
     }
 
     inline HRESULT __stdcall hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) {
-        ShutdownImGuiAndBuffers();
-        return oResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+        if (g_imguiInitialized) {
+            ImGui_ImplDX11_InvalidateDeviceObjects();
+        }
+
+        HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+
+        if (SUCCEEDED(hr) && g_imguiInitialized) {
+            ImGui_ImplDX11_CreateDeviceObjects();
+        }
+        return hr;
     }
 
     inline void __stdcall hkExecuteCommandLists(ID3D12CommandQueue* pQueue, UINT NumCommandLists, ID3D12CommandList* const* ppCommandLists) {
