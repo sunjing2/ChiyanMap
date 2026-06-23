@@ -8,7 +8,7 @@ namespace MapCacheManager {
     std::vector<uint64_t> g_loadQueue;
     std::mutex g_cacheMutex;
     std::atomic<bool> g_running{false};
-    std::thread g_ioThread;
+    std::thread* g_ioThread = nullptr;
     
     // 初始化为空，等待进入世界时分配
     std::string g_cacheDir = "";
@@ -96,12 +96,18 @@ namespace MapCacheManager {
 
     void Init() {
         g_running = true;
-        g_ioThread = std::thread(IOWorker);
+        g_ioThread = new std::thread(IOWorker);
     }
 
     void Shutdown() {
         g_running = false;
-        if (g_ioThread.joinable()) g_ioThread.join();
+        if (g_ioThread) {
+            if (g_ioThread->joinable()) {
+                g_ioThread->join();
+            }
+            delete g_ioThread;
+            g_ioThread = nullptr;
+        }
         for (auto& pair : g_loadedRegions) if(pair.second) delete pair.second;
         g_loadedRegions.clear();
         g_loadQueue.clear();

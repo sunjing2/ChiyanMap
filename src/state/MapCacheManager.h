@@ -26,7 +26,7 @@ namespace MapCacheManager {
     extern std::vector<uint64_t> g_loadQueue; // [性能核心] 异步加载请求队列
     extern std::mutex g_cacheMutex;
     extern std::atomic<bool> g_running;
-    extern std::thread g_ioThread;
+    extern std::thread* g_ioThread;
 
     void Init();
     void Shutdown();
