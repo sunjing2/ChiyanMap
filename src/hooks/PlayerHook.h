@@ -531,13 +531,17 @@ LL_TYPE_INSTANCE_HOOK(
                     if (ci.flags == 0) {
                         RECT clientRect;
                         GetClientRect(hwnd, &clientRect);
-                        POINT ptTopLeft = { clientRect.left, clientRect.top };
-                        POINT ptBottomRight = { clientRect.right, clientRect.bottom };
-                        ClientToScreen(hwnd, &ptTopLeft);
-                        ClientToScreen(hwnd, &ptBottomRight);
-                        RECT screenRect = { ptTopLeft.x, ptTopLeft.y, ptBottomRight.x, ptBottomRight.y };
-                        ClipCursor(&screenRect);
+                        
+                        // 计算游戏客户区的正中心坐标
+                        POINT ptCenter = { (clientRect.right - clientRect.left) / 2, (clientRect.bottom - clientRect.top) / 2 };
+                        ClientToScreen(hwnd, &ptCenter);
+                        
+                        // 【防覆盖层透传】将隐形指针死死锁在屏幕正中心 2x2 像素的极小死区内
+                        // 彻底杜绝指针在疯狂转动视角时漂移到边缘的 Xbox Game Bar 等悬浮性能面板上导致游戏失焦
+                        RECT centerRect = { ptCenter.x - 1, ptCenter.y - 1, ptCenter.x + 1, ptCenter.y + 1 };
+                        ClipCursor(&centerRect);
                     } else {
+                        // 处于背包、设置或原生游戏暂停菜单状态（系统鼠标显现），放开剪裁范围
                         ClipCursor(NULL);
                     }
                 }

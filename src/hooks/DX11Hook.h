@@ -669,38 +669,69 @@ namespace DX11Hook {
 
     inline void UpdateRegionTexture(uint64_t hash, int& texCount) {
         if (!g_pd3dDevice || !g_pd3dDeviceContext) return;
-        static uint8_t tempBuffer[256 * 256 * 4];
         
+        bool isKnown = (g_regionTextures.find(hash) != g_regionTextures.end());
+        
+        // 1. 【极速状态探测】直接窥探底层 IO 状态，如果缺失直接排队，绝不阻塞主线程，完美修复加载断层
+        bool isLoadedAndDirty = false;
+        {
+            std::lock_guard<std::mutex> lock(MapCacheManager::g_cacheMutex);
+            auto it = MapCacheManager::g_loadedRegions.find(hash);
+            if (it == MapCacheManager::g_loadedRegions.end()) {
+                MapCacheManager::g_loadedRegions[hash] = nullptr;
+                MapCacheManager::g_loadQueue.push_back(hash);
+                return; // 刚排队，直接闪退
+            } else if (it->second != nullptr) {
+                isLoadedAndDirty = it->second->textureDirty;
+            }
+        }
+
+        // 数据没脏就不需要更新
+        if (!isLoadedAndDirty) return;
+
+        // 需要建图但本帧建图配额（提升至4以加快大后期渲染）已满，直接返回（保留 Dirty 给下帧）
+        if (!isKnown && texCount >= 4) return;
+
+        // 内存对齐以支持极速 64 位空域探测
+        alignas(8) static uint8_t tempBuffer[256 * 256 * 4];
         if (MapCacheManager::FetchRegionTextureData(hash, tempBuffer)) {
-            if (g_regionTextures.find(hash) == g_regionTextures.end()) {
-                if (texCount >= 2) {
-                    MapCacheManager::MarkTextureDirty(hash);
-                    return;
+            
+            // 【DrawCall级优化核心】透明区块免疫技术：如果这片区域完全没探索过（纯透明），彻底免渲染！
+            bool isEmpty = true;
+            uint64_t* ptr64 = (uint64_t*)tempBuffer;
+            for (int i = 0; i < (256 * 256 * 4) / 8; ++i) {
+                if (ptr64[i] != 0) { isEmpty = false; break; }
+            }
+
+            // 若原本未知，或原本是空贴图但现在有了数据
+            if (!isKnown || (isKnown && g_regionTextures[hash] == nullptr && !isEmpty)) {
+                if (isEmpty) {
+                    // 标记为空贴图，不占用显存，极大幅度缩减 ImGui DrawCall 数量
+                    g_regionTextures[hash] = nullptr;
+                    g_regionSRVs[hash] = nullptr;
+                } else {
+                    texCount++;
+                    D3D11_TEXTURE2D_DESC desc = {};
+                    desc.Width = 256; desc.Height = 256;
+                    desc.MipLevels = 1; desc.ArraySize = 1;
+                    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                    desc.SampleDesc.Count = 1; desc.Usage = D3D11_USAGE_DEFAULT;
+                    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                    
+                    D3D11_SUBRESOURCE_DATA initData = {};
+                    initData.pSysMem = tempBuffer;
+                    initData.SysMemPitch = 256 * 4;
+                    
+                    ID3D11Texture2D* tex = nullptr;
+                    ID3D11ShaderResourceView* srv = nullptr;
+                    
+                    if (SUCCEEDED(g_pd3dDevice->CreateTexture2D(&desc, &initData, &tex))) {
+                        g_pd3dDevice->CreateShaderResourceView(tex, NULL, &srv);
+                        g_regionTextures[hash] = tex;
+                        g_regionSRVs[hash] = srv;
+                    }
                 }
-                texCount++;
-                
-                D3D11_TEXTURE2D_DESC desc;
-                ZeroMemory(&desc, sizeof(desc));
-                desc.Width = 256; desc.Height = 256;
-                desc.MipLevels = 1; desc.ArraySize = 1;
-                desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-                desc.SampleDesc.Count = 1; desc.Usage = D3D11_USAGE_DEFAULT;
-                desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-                
-                D3D11_SUBRESOURCE_DATA initData;
-                initData.pSysMem = tempBuffer;
-                initData.SysMemPitch = 256 * 4;
-                initData.SysMemSlicePitch = 0;
-                
-                ID3D11Texture2D* tex = nullptr;
-                ID3D11ShaderResourceView* srv = nullptr;
-                
-                if (SUCCEEDED(g_pd3dDevice->CreateTexture2D(&desc, &initData, &tex))) {
-                    g_pd3dDevice->CreateShaderResourceView(tex, NULL, &srv);
-                    g_regionTextures[hash] = tex;
-                    g_regionSRVs[hash] = srv;
-                }
-            } else {
+            } else if (g_regionTextures[hash] != nullptr) {
                 g_pd3dDeviceContext->UpdateSubresource(g_regionTextures[hash], 0, NULL, tempBuffer, 256 * 4, 0);
             }
         }
@@ -862,12 +893,16 @@ namespace DX11Hook {
                     UpdateRegionTexture(hash, texturesCreatedThisFrame);
 
                     if (g_regionSRVs.find(hash) != g_regionSRVs.end()) {
-                        float sx_min = std::floor(cx + (rx * 256.0f - g_smoothPX) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetX);
-                        float sy_min = std::floor(cy + (rz * 256.0f - g_smoothPZ) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetZ);
-                        float sx_max = std::floor(cx + ((rx + 1) * 256.0f - g_smoothPX) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetX);
-                        float sy_max = std::floor(cy + ((rz + 1) * 256.0f - g_smoothPZ) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetZ);
-                        
-                        draw_list->AddImage((void*)g_regionSRVs[hash], ImVec2(sx_min, sy_min), ImVec2(sx_max, sy_max));
+                        // 【渲染管线减负】只有包含实际像素的非空贴图才会被加入 ImGui 的 DrawCall 绘制队列！
+                        // 极大减负显卡在微缩大地图时的渲染压力，实现绝对满帧体验。
+                        if (g_regionSRVs[hash] != nullptr) {
+                            float sx_min = std::floor(cx + (rx * 256.0f - g_smoothPX) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetX);
+                            float sy_min = std::floor(cy + (rz * 256.0f - g_smoothPZ) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetZ);
+                            float sx_max = std::floor(cx + ((rx + 1) * 256.0f - g_smoothPX) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetX);
+                            float sy_max = std::floor(cy + ((rz + 1) * 256.0f - g_smoothPZ) * MapRenderState::bigMapZoom + MapRenderState::bigMapOffsetZ);
+                            
+                            draw_list->AddImage((void*)g_regionSRVs[hash], ImVec2(sx_min, sy_min), ImVec2(sx_max, sy_max));
+                        }
                     }
                 }
             }
