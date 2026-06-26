@@ -3,5 +3,7 @@
     "entry": "${modFile}",
     "version": "${modVersion}",
     "type": "native",
-    "platform": "client"
+    "platform": "client",
+    "author": "Chiyan",
+    "description": "小地图+大地图",
 }
