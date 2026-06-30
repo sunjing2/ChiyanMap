@@ -325,7 +325,7 @@ LL_TYPE_INSTANCE_HOOK(
 
     auto* player = this->getLocalPlayer();
         if (player && this->isWorldActive()) {
-            const Vec3& pos = player->getPosition();
+            const Vec3 pos = player->getFeetPos();
 
             if (g_prevPhysicsPos.x == 0.0f && g_prevPhysicsPos.z == 0.0f) {
                 g_prevPhysicsPos = pos;
