@@ -232,6 +232,9 @@ namespace DX11Hook {
             }
 
             if (uMsg == WM_KEYDOWN && wParam == 0x59) {
+                if (!MapRenderState::showMiniMap) {
+                    return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
+                }
                 CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
                 if (GetCursorInfo(&ci)) {
                     if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
