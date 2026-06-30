@@ -238,9 +238,16 @@ namespace DX11Hook {
                         return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
                     }
                 }
-                MapRenderState::isSquareMap = !MapRenderState::isSquareMap;
-                LanguageManager::SaveConfig();
-                return 1;
+                
+                // 仅在小地图显示时，才允许切换地图形状并拦截按键
+                if (MapRenderState::showMiniMap) {
+                    MapRenderState::isSquareMap = !MapRenderState::isSquareMap;
+                    LanguageManager::SaveConfig();
+                    return 1;
+                }
+                
+                // 如果小地图隐藏，则将按键透传给游戏处理
+                return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
             }
 
             if (MapRenderState::IsUIActive()) {
