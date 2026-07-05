@@ -236,7 +236,14 @@ namespace DX11Hook {
                 return 1;
             }
 
+<<<<<<< HEAD
             if (uMsg == WM_KEYDOWN && wParam == 0x59 && !isTyping) {
+=======
+            if (uMsg == WM_KEYDOWN && wParam == 0x59) {
+                if (!MapRenderState::showMiniMap) {
+                    return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
+                }
+>>>>>>> 86e3b517fa6681a2042b34151152b531a2c628c2
                 CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
                 if (GetCursorInfo(&ci)) {
                     if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
@@ -244,12 +251,20 @@ namespace DX11Hook {
                     }
                 }
                 
+<<<<<<< HEAD
+=======
+                // 仅在小地图显示时，才允许切换地图形状并拦截按键
+>>>>>>> 86e3b517fa6681a2042b34151152b531a2c628c2
                 if (MapRenderState::showMiniMap) {
                     MapRenderState::isSquareMap = !MapRenderState::isSquareMap;
                     LanguageManager::SaveConfig();
                     return 1;
                 }
                 
+<<<<<<< HEAD
+=======
+                // 如果小地图隐藏，则将按键透传给游戏处理
+>>>>>>> 86e3b517fa6681a2042b34151152b531a2c628c2
                 return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
             }
 

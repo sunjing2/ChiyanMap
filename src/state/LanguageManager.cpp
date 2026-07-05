@@ -5,13 +5,16 @@
 #include <filesystem>
 #include <windows.h>
 #include <nlohmann/json.hpp>
+#include <ll/api/i18n/I18n.h>
+#include <mutex>
 
 using json = nlohmann::json;
 
 namespace LanguageManager {
     std::string g_currentLanguage = "en";
     std::vector<std::pair<std::string, std::string>> g_availableLanguages;
-    static std::unordered_map<std::string, std::string> g_loadedTranslations;
+    static std::unordered_map<std::string, std::string> g_translationCache;
+    static std::mutex g_cacheMutex;
 
     static std::unordered_map<std::string, std::string> g_defaultJsonFiles = {
         {"en", R"json({
@@ -675,6 +678,10 @@ namespace LanguageManager {
             }
         }
 
+        if (auto res = ll::i18n::getInstance().load("mods/ChiyanMap/lang"); !res) {
+            printf("[ChiyanMap] i18n load failed!\n");
+        }
+
         ScanLanguages();
         LoadConfig();
     }
@@ -722,26 +729,9 @@ namespace LanguageManager {
     }
 
     void LoadLanguage(const std::string& langCode) {
-        g_loadedTranslations.clear();
-
-        auto loadFromFile = [](const std::string& path, std::unordered_map<std::string, std::string>& dest) {
-            std::ifstream in(path);
-            if (in.is_open()) {
-                try {
-                    json j;
-                    in >> j;
-                    for (auto& [k, v] : j.items()) {
-                        dest[k] = v.get<std::string>();
-                    }
-                } catch(...) {}
-                in.close();
-            }
-        };
-
-        loadFromFile("mods/ChiyanMap/lang/en.json", g_loadedTranslations);
-        if (langCode != "en") {
-            loadFromFile("mods/ChiyanMap/lang/" + langCode + ".json", g_loadedTranslations);
-        }
+        std::lock_guard<std::mutex> lock(g_cacheMutex);
+        g_currentLanguage = langCode;
+        g_translationCache.clear();
     }
 
     void LoadConfig() {
@@ -807,10 +797,13 @@ namespace LanguageManager {
     }
 
     const char* GetText(const std::string& key) {
-        auto it = g_loadedTranslations.find(key);
-        if (it != g_loadedTranslations.end()) {
+        std::lock_guard<std::mutex> lock(g_cacheMutex);
+        auto it = g_translationCache.find(key);
+        if (it != g_translationCache.end()) {
             return it->second.c_str();
         }
-        return key.c_str();
+        std::string_view sv = ll::i18n::getInstance().get(key, g_currentLanguage);
+        g_translationCache[key] = std::string(sv);
+        return g_translationCache[key].c_str();
     }
 }
