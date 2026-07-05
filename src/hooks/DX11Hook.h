@@ -114,7 +114,7 @@ namespace DX11Hook {
     typedef SHORT(WINAPI* PGETASYNCKEYSTATE_HOOK)(int);
     inline PGETASYNCKEYSTATE_HOOK oGetAsyncKeyState = nullptr;
     inline SHORT WINAPI hkGetAsyncKeyState(int vKey) {
-        if (MapRenderState::IsUIActive() && vKey != 0x4D && vKey != VK_F11) {
+        if (MapRenderState::IsUIActive() && vKey != VK_F11) {
             return 0;
         }
         if (oGetAsyncKeyState) return oGetAsyncKeyState(vKey);
@@ -124,7 +124,7 @@ namespace DX11Hook {
     typedef SHORT(WINAPI* PGETKEYSTATE_HOOK)(int);
     inline PGETKEYSTATE_HOOK oGetKeyState = nullptr;
     inline SHORT WINAPI hkGetKeyState(int vKey) {
-        if (MapRenderState::IsUIActive() && vKey != 0x4D && vKey != VK_F11) {
+        if (MapRenderState::IsUIActive() && vKey != VK_F11) {
             return 0;
         }
         if (oGetKeyState) return oGetKeyState(vKey);
@@ -198,7 +198,12 @@ namespace DX11Hook {
         if (g_imguiInitialized && g_hasPlayer) {
             ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
             
-            if (uMsg == WM_KEYDOWN && wParam == 0x4D) {
+            bool isTyping = false;
+            if (ImGui::GetCurrentContext()) {
+                isTyping = ImGui::GetIO().WantCaptureKeyboard;
+            }
+
+            if (uMsg == WM_KEYDOWN && wParam == 0x4D && !isTyping) {
                 CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
                 if (GetCursorInfo(&ci)) {
                     if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
@@ -214,12 +219,12 @@ namespace DX11Hook {
                 }
                 return 1;
             }
-            if (uMsg == WM_KEYDOWN && wParam == 0x55) {
+            if (uMsg == WM_KEYDOWN && wParam == 0x55 && !isTyping) {
                 MapRenderState::showWaypointUI = !MapRenderState::showWaypointUI;
                 return 1;
             }
 
-            if (uMsg == WM_KEYDOWN && wParam == 0x4E) {
+            if (uMsg == WM_KEYDOWN && wParam == 0x4E && !isTyping) {
                 CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
                 if (GetCursorInfo(&ci)) {
                     if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
@@ -231,16 +236,21 @@ namespace DX11Hook {
                 return 1;
             }
 
-            if (uMsg == WM_KEYDOWN && wParam == 0x59) {
+            if (uMsg == WM_KEYDOWN && wParam == 0x59 && !isTyping) {
                 CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
                 if (GetCursorInfo(&ci)) {
                     if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
                         return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
                     }
                 }
-                MapRenderState::isSquareMap = !MapRenderState::isSquareMap;
-                LanguageManager::SaveConfig();
-                return 1;
+                
+                if (MapRenderState::showMiniMap) {
+                    MapRenderState::isSquareMap = !MapRenderState::isSquareMap;
+                    LanguageManager::SaveConfig();
+                    return 1;
+                }
+                
+                return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
             }
 
             if (MapRenderState::IsUIActive()) {
@@ -252,7 +262,9 @@ namespace DX11Hook {
                 }
                 if (uMsg == WM_INPUT || uMsg == WM_INPUT_DEVICE_CHANGE) return 1;
                 if (uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST) return 1;
-                if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST && wParam != 0x4D && wParam != 0x55 && wParam != VK_F11) return 1;
+                // 当处于 UI 状态时拦截所有按键（除F11外），且不再为快捷键开特例
+                // 但放行 WM_CHAR 等字符消息，以支持 IME 中文输入
+                if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST && uMsg != WM_CHAR && uMsg != WM_SYSCHAR && uMsg != WM_DEADCHAR && uMsg != WM_SYSDEADCHAR && wParam != VK_F11) return 1;
                 if (uMsg == WM_SETCURSOR) { SetCursor(LoadCursor(NULL, IDC_ARROW)); return TRUE; }
             }
         }
@@ -746,7 +758,7 @@ namespace DX11Hook {
             trigger = false;
         }
         if (ImGui::BeginPopupModal(modalId, NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-            static char renameBuf[64] = "";
+            static char renameBuf[256] = "";
             static bool initialized = false;
             
             Waypoint targetWp;
@@ -1194,7 +1206,7 @@ namespace DX11Hook {
         if (ImGui::Begin(LanguageManager::GetText("WP_MANAGER_TITLE"), &MapRenderState::showWaypointUI, winFlags)) {
             
             static bool showAddPopup = false;
-            static char searchBuf[128] = "";
+            static char searchBuf[256] = "";
             
             ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 150);
             ImGui::InputTextWithHint("##WPSearch", LanguageManager::GetText("SEARCH_HINT"), searchBuf, sizeof(searchBuf));
@@ -1312,12 +1324,12 @@ namespace DX11Hook {
             if (showAddPopup) ImGui::OpenPopup(LanguageManager::GetText("NEW_WP_TITLE"));
             
             if (ImGui::BeginPopupModal(LanguageManager::GetText("NEW_WP_TITLE"), &showAddPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
-                static char nameBuf[64] = "";
+                static char nameBuf[256] = "";
                 static int pos[3] = {0, 0, 0};
                 static float col[3] = {1.0f, 0.3f, 0.3f};
                 
                 if (ImGui::IsWindowAppearing()) {
-                    snprintf(nameBuf, sizeof(nameBuf), "%s", LanguageManager::GetText("WP_DEFAULT_NAME")); 
+                    nameBuf[0] = '\0'; 
                     pos[0] = (MapRenderState::addWaypointX != -999999) ? MapRenderState::addWaypointX : g_playerBlockX;
                     pos[1] = (MapRenderState::addWaypointY != -999999) ? MapRenderState::addWaypointY : (int)g_playerY;
                     pos[2] = (MapRenderState::addWaypointZ != -999999) ? MapRenderState::addWaypointZ : g_playerBlockZ;
@@ -1327,7 +1339,7 @@ namespace DX11Hook {
                     MapRenderState::addWaypointZ = -999999;
                 }
 
-                ImGui::InputText(LanguageManager::GetText("WP_NAME"), nameBuf, 64);
+                ImGui::InputText(LanguageManager::GetText("WP_NAME"), nameBuf, sizeof(nameBuf));
                 ImGui::InputInt3("X / Y / Z", pos);
                 ImGui::ColorEdit3(LanguageManager::GetText("WP_COLOR"), col);
                 
