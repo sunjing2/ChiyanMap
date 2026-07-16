@@ -62,18 +62,29 @@ bool ChiyanMap::load() {
     }
     
     if (gameVer) {
-        // 将 LeviLamina 默认输出的 1.26.20-4 格式安全转换为 1.26.20.4
-        std::string verStr = fmt::format("{}", gameVer->to_string());
-        std::replace(verStr.begin(), verStr.end(), '-', '.');
+        // 手动构造原始版本字符串 (LeviLamina 输出格式如 "1.26.20-4")
+        std::string rawVer = fmt::format("{}.{}.{}-{}", gameVer->major, gameVer->minor, gameVer->patch, gameVer->build.value_or("4"));
+        std::string displayVer = rawVer;
 
-        // 使用字符串精准匹配，避免 Version 结构体映射差异导致的验证失败
-        if (verStr != "1.26.20.4" && verStr != "1.26.20.04") {
-            getSelf().getLogger().error("{}: {}", LanguageManager::GetText("LOG_VERSION_MISMATCH"), verStr);
+        // 将 1.26.20-4 格式美化为玩家熟悉的 1.26.20.04 用于日志友好输出
+        size_t dashPos = displayVer.find('-');
+        if (dashPos != std::string::npos) {
+            std::string tail = displayVer.substr(dashPos + 1);
+            if (tail.length() == 1) {
+                displayVer.replace(dashPos, 1, ".0"); // 单个数字补零
+            } else {
+                displayVer.replace(dashPos, 1, ".");  // 双数直接换点
+            }
+        }
+
+        // 使用底层原始字符串精准匹配，严格锁定
+        if (rawVer != "1.26.20-4") {
+            getSelf().getLogger().error("{}: {}", LanguageManager::GetText("LOG_VERSION_MISMATCH"), displayVer);
             getSelf().getLogger().error("{}", LanguageManager::GetText("LOG_VERSION_STRICT"));
             getSelf().getLogger().error("{}", LanguageManager::GetText("LOG_VERSION_ABORT"));
             return false;
         }
-        getSelf().getLogger().info("{}: {}", LanguageManager::GetText("LOG_VERSION_PASS"), verStr);
+        getSelf().getLogger().info("{}: {}", LanguageManager::GetText("LOG_VERSION_PASS"), displayVer);
     } else {
         getSelf().getLogger().warn("{}", LanguageManager::GetText("LOG_VERSION_UNKNOWN"));
     }

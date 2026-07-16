@@ -1003,9 +1003,9 @@ namespace LanguageManager {
             return "[CRITICAL] Game version mismatch! Current client version";
         }
         if (key == "LOG_VERSION_STRICT") {
-            if (g_currentLanguage == "zh_CN") return "【严重警告】赤焰地图 (ChiyanMap) 底层拦截器当前严格限定仅兼容 1.26.20.4 版本！";
-            if (g_currentLanguage == "zh_TW") return "【嚴重警告】赤焰地圖 (ChiyanMap) 底層攔截器當前嚴格限定僅相容 1.26.20.4 版本！";
-            return "[CRITICAL] ChiyanMap strictly supports version 1.26.20.4 only!";
+            if (g_currentLanguage == "zh_CN") return "【严重警告】赤焰地图 (ChiyanMap) 底层拦截器当前严格限定仅兼容 1.26.20.04 版本！";
+            if (g_currentLanguage == "zh_TW") return "【嚴重警告】赤焰地圖 (ChiyanMap) 底層攔截器當前嚴格限定僅相容 1.26.20.04 版本！";
+            return "[CRITICAL] ChiyanMap strictly supports version 1.26.20.04 only!";
         }
         if (key == "LOG_VERSION_ABORT") {
             if (g_currentLanguage == "zh_CN") return "【严重警告】为防止加载进入世界时发生 Access Violation 崩溃，模组已主动中止加载。";
