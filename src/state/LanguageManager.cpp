@@ -951,6 +951,24 @@ namespace LanguageManager {
             if (g_currentLanguage == "zh_TW") return "調整小地圖佈局";
             return "Edit Minimap Layout";
         }
+        if (key == "NATIVE_IME_TOOLTIP") {
+            if (g_currentLanguage == "zh_CN") return "点击打开原生输入框以输入中文等字符";
+            if (g_currentLanguage == "zh_TW") return "點擊打開原生輸入框以輸入中文等字元";
+            if (g_currentLanguage == "ja") return "クリックしてネイティブ入力ボックスを開き、日本語などを入力します";
+            if (g_currentLanguage == "ko") return "클릭하여 기본 입력란을 열고 한국어 등을 입력합니다";
+            if (g_currentLanguage == "ru") return "Нажмите, чтобы открыть системное поле ввода для ввода текста";
+            if (g_currentLanguage == "fr") return "Cliquez pour ouvrir la zone de saisie native (chinois, etc.)";
+            if (g_currentLanguage == "de") return "Klicken, um das native Eingabefeld für Text zu öffnen";
+            if (g_currentLanguage == "pt_BR") return "Clique para abrir a caixa de entrada nativa e digitar texto";
+            if (g_currentLanguage == "it") return "Fai clic per aprire la casella di input nativa per digitare";
+            if (g_currentLanguage == "es") return "Haga clic para abrir el cuadro de entrada nativo para escribir";
+            if (g_currentLanguage == "id") return "Klik untuk membuka kotak masukan bawaan untuk mengetik";
+            if (g_currentLanguage == "th") return "คลิกเพื่อเปิดกล่องป้อนข้อความพื้นฐานสำหรับพิมพ์";
+            if (g_currentLanguage == "tr") return "Metin yazmak için yerel giriş kutusunu açın";
+            if (g_currentLanguage == "uk") return "Натисніть, щоб відкрити системне поле введення";
+            if (g_currentLanguage == "vi") return "Nhấn để mở hộp nhập văn bản gốc để gõ văn bản";
+            return "Click to open native input box to type Chinese/etc.";
+        }
         if (key == "DEFAULT_POS") {
             if (g_currentLanguage == "zh_CN") return "恢复默认";
             if (g_currentLanguage == "zh_TW") return "恢復預設";

@@ -21,6 +21,7 @@
 #include <mc/deps/core/math/Vec3.h>
 #include <mc/world/level/Level.h>
 #include <mc/world/actor/Actor.h>
+#include <mc/world/actor/ActorHurtResult.h>
 #include <mc/world/actor/ActorCategory.h>
 #include <mc/world/gamemode/GameMode.h>
 #include <mc/world/gamemode/InteractionResult.h>
@@ -842,28 +843,41 @@ LL_TYPE_INSTANCE_HOOK(
     return origin(actor);
 }
 
-LL_TYPE_INSTANCE_HOOK(
-    ActorIsImmobileHook,
-    ll::memory::HookPriority::Normal,
-    Actor,
-    &Actor::$isImmobile,
-    bool
-) {
-    if (MapRenderState::showBigMap && g_localPlayer && this == (Actor*)g_localPlayer) return true;
-    return origin();
-}
+    LL_TYPE_INSTANCE_HOOK(
+        ActorIsImmobileHook,
+        ll::memory::HookPriority::Normal,
+        Actor,
+        &Actor::$isImmobile,
+        bool
+    ) {
+        if (MapRenderState::showBigMap && g_localPlayer && this == (Actor*)g_localPlayer) return true;
+        return origin();
+    }
 
-LL_TYPE_INSTANCE_HOOK(
-    LocalPlayerSwingHook,
-    ll::memory::HookPriority::Normal,
-    LocalPlayer,
-    &LocalPlayer::$swing,
-    bool,
-    ActorSwingSource swingSource
-) {
-    if (MapRenderState::IsUIActive()) return false;
-    return origin(swingSource);
-}
+    LL_TYPE_INSTANCE_HOOK(
+        LocalPlayerSwingHook,
+        ll::memory::HookPriority::Normal,
+        LocalPlayer,
+        &LocalPlayer::$swing,
+        bool,
+        ActorSwingSource swingSource
+    ) {
+        if (MapRenderState::IsUIActive()) return false;
+        return origin(swingSource);
+    }
+
+    LL_TYPE_INSTANCE_HOOK(
+        PlayerAttackHook,
+        ll::memory::HookPriority::Highest,
+        Player,
+        &Player::$attack,
+        ActorHurtResult,
+        Actor& target,
+        SharedTypes::Legacy::ActorDamageCause const& damageCause
+    ) {
+        if (MapRenderState::IsUIActive() && g_localPlayer && (Player*)this == g_localPlayer) return ActorHurtResult{};
+        return origin(target, damageCause);
+    }
 
 LL_TYPE_INSTANCE_HOOK(
     GameModeUseItemOnHook,
@@ -904,7 +918,7 @@ LL_TYPE_INSTANCE_HOOK(
     &Player::canJump,
     bool
 ) {
-    if (MapRenderState::showBigMap && g_localPlayer && (Player*)this == (Player*)g_localPlayer) return false;
+    if (MapRenderState::IsUIActive() && g_localPlayer && (Player*)this == (Player*)g_localPlayer) return false;
     return origin();
 }
 
@@ -916,7 +930,7 @@ LL_TYPE_INSTANCE_HOOK(
     void,
     bool isSneaking
 ) {
-    if (MapRenderState::showBigMap && g_localPlayer && this == g_localPlayer) return;
+    if (MapRenderState::IsUIActive() && g_localPlayer && this == g_localPlayer) return;
     origin(isSneaking);
 }
 
@@ -927,7 +941,7 @@ LL_TYPE_INSTANCE_HOOK(
     &Player::$isImmobile,
     bool
 ) {
-    if (MapRenderState::showBigMap && g_localPlayer && (Player*)this == (Player*)g_localPlayer) return true;
+    if (MapRenderState::IsUIActive() && g_localPlayer && (Player*)this == (Player*)g_localPlayer) return true;
     return origin();
 }
 
@@ -939,7 +953,7 @@ LL_TYPE_INSTANCE_HOOK(
     void,
     ItemStack const& item
 ) {
-    if (MapRenderState::showBigMap && g_localPlayer && this == (Actor*)g_localPlayer) return;
+    if (MapRenderState::IsUIActive() && g_localPlayer && this == (Actor*)g_localPlayer) return;
     origin(item);
 }
 

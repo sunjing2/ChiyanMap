@@ -194,114 +194,263 @@ namespace DX11Hook {
         oExecuteCommandLists(pQueue, NumCommandLists, ppCommandLists);
     }
 
+    // 【原生独立输入系统】悬浮宿主模式，归属于游戏窗口但无跨线程死锁
+    namespace NativeIME {
+        inline std::atomic<bool> isTyping{false};
+        inline char* targetBuffer = nullptr;
+        inline size_t targetBufferSize = 0;
+        inline char localBuffer[256] = {0};
+        inline WNDPROC oEditProc = nullptr;
+        inline HWND hImeWnd = nullptr;
+
+        inline void Close() {
+            if (isTyping.load() && hImeWnd) {
+                PostMessage(hImeWnd, WM_CLOSE, 0, 0);
+                isTyping = false;
+            }
+        }
+
+        inline LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+            // 【修复系统快捷键】将 F1~F24 快捷键透传给游戏窗口 (例如 F11 全屏切换)
+            if (msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP) {
+                if (wParam >= VK_F1 && wParam <= VK_F24) {
+                    PostMessage(g_hWnd, msg, wParam, lParam);
+                    return 0; // 拦截掉，防止发给文本框产生无效音效
+                }
+            }
+            if (msg == WM_KEYDOWN) {
+                if (wParam == VK_RETURN) { // 回车确认
+                    NativeIME::Close();
+                    return 0;
+                } else if (wParam == VK_ESCAPE) { // Esc取消
+                    NativeIME::Close();
+                    return 0;
+                }
+            }
+            // 【修复光标被隐形/覆盖】Windows 默认的文本光标 (I-Beam) 是纯黑色细线，在深灰背景下会完全隐形！
+            // 这里我们强制将鼠标悬浮在输入框时也显示为系统的白色标准箭头，确保它在最顶层绝对可见！
+            if (msg == WM_SETCURSOR) {
+                SetCursor(LoadCursor(NULL, IDC_ARROW));
+                return TRUE;
+            }
+            return CallWindowProc(oEditProc, hwnd, msg, wParam, lParam);
+        }
+
+        inline void Open(char* buf, size_t bufSize, const char* title) {
+            if (isTyping.load()) {
+                Close();
+                if (targetBuffer == buf) return; // 再次点击同一按钮则仅仅是关闭
+            }
+            isTyping = true;
+            targetBuffer = buf;
+            targetBufferSize = bufSize;
+            strncpy(localBuffer, buf, 256);
+
+            std::thread([]() {
+                WNDCLASSW wc = {0};
+                wc.lpfnWndProc = [](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT {
+                    if (msg == WM_CREATE) {
+                        // 文本框右侧留出 30 像素给关闭按钮 (X)
+                        HWND hEdit = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | ES_LEFT,
+                            10, 10, 250, 20, hwnd, (HMENU)1, NULL, NULL);
+                        SendMessageA(hEdit, WM_SETTEXT, 0, (LPARAM)localBuffer);
+                        oEditProc = (WNDPROC)SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)EditProc);
+                        
+                        HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+                        SendMessage(hEdit, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+                    } else if (msg == WM_COMMAND) {
+                        // 【核心优化：实时同步】只要输入框的内容发生任何变更，瞬间同步至目标 ImGui 缓冲
+                        if (HIWORD(wParam) == EN_CHANGE) {
+                            HWND hEdit = (HWND)lParam;
+                            GetWindowTextA(hEdit, localBuffer, 256);
+                            if (targetBuffer) {
+                                strncpy(targetBuffer, localBuffer, targetBufferSize - 1);
+                                targetBuffer[targetBufferSize - 1] = '\0';
+                            }
+                        }
+                    } else if (msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORSTATIC) {
+                        HDC hdc = (HDC)wParam;
+                        SetTextColor(hdc, RGB(240, 240, 240)); 
+                        SetBkColor(hdc, RGB(35, 35, 35));      
+                        static HBRUSH hBrush = CreateSolidBrush(RGB(35, 35, 35));
+                        return (LRESULT)hBrush;
+                    } else if (msg == WM_PAINT) {
+                        PAINTSTRUCT ps;
+                        HDC hdc = BeginPaint(hwnd, &ps);
+                        RECT rc; GetClientRect(hwnd, &rc);
+                        HBRUSH bg = CreateSolidBrush(RGB(35, 35, 35));
+                        FillRect(hdc, &rc, bg);
+                        DeleteObject(bg);
+                        
+                        // 绘制边框
+                        HPEN pen = CreatePen(PS_SOLID, 2, RGB(80, 80, 80));
+                        HGDIOBJ oldPen = SelectObject(hdc, pen);
+                        MoveToEx(hdc, 0, 0, NULL);
+                        LineTo(hdc, rc.right, 0);
+                        LineTo(hdc, rc.right, rc.bottom);
+                        LineTo(hdc, 0, rc.bottom);
+                        LineTo(hdc, 0, 0);
+                        SelectObject(hdc, oldPen);
+                        DeleteObject(pen);
+                        
+                        // 绘制关闭按钮 (X)
+                        SetBkMode(hdc, TRANSPARENT);
+                        SetTextColor(hdc, RGB(220, 80, 80));
+                        RECT rcX = { rc.right - 25, 0, rc.right, rc.bottom };
+                        DrawTextW(hdc, L"X", -1, &rcX, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+                        EndPaint(hwnd, &ps);
+                        return 0;
+                    } else if (msg == WM_LBUTTONDOWN) {
+                        int x = LOWORD(lParam);
+                        int y = HIWORD(lParam);
+                        RECT rc; GetClientRect(hwnd, &rc);
+                        if (x >= rc.right - 30 && x <= rc.right && y >= 0 && y <= rc.bottom) {
+                            NativeIME::Close();
+                        }
+                    } else if (msg == WM_SETCURSOR) {
+                        // 【修复指针覆盖问题】强制此小窗口内显示标准箭头鼠标
+                        SetCursor(LoadCursor(NULL, IDC_ARROW));
+                        return TRUE;
+                    } else if (msg == WM_CLOSE) {
+                        isTyping = false;
+                        PostQuitMessage(0);
+                    }
+                    return DefWindowProcW(hwnd, msg, wParam, lParam);
+                };
+                wc.hInstance = GetModuleHandle(NULL);
+                wc.lpszClassName = L"NativeIMEWnd";
+                RegisterClassW(&wc);
+
+                RECT rcGame;
+                if (g_hWnd) {
+                    GetClientRect(g_hWnd, &rcGame);
+                    ClientToScreen(g_hWnd, (LPPOINT)&rcGame.left);
+                    ClientToScreen(g_hWnd, (LPPOINT)&rcGame.right);
+                } else {
+                    rcGame = {0, 0, 1920, 1080}; 
+                }
+                int w = 300; int h = 40;
+                int x = rcGame.left + (rcGame.right - rcGame.left - w) / 2;
+                int y = rcGame.top + (rcGame.bottom - rcGame.top - h) / 2;
+
+                HWND hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, L"NativeIMEWnd", L"",
+                    WS_POPUP, x, y, w, h, g_hWnd, NULL, wc.hInstance, NULL);
+
+                hImeWnd = hwnd;
+                ShowWindow(hwnd, SW_SHOW);
+                UpdateWindow(hwnd);
+                
+                SetForegroundWindow(hwnd);
+                SetFocus(GetDlgItem(hwnd, 1)); // 精确聚焦到输入框子控件
+
+                MSG msg;
+                while (GetMessage(&msg, NULL, 0, 0)) {
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                }
+
+                hImeWnd = nullptr;
+                UnregisterClassW(L"NativeIMEWnd", wc.hInstance);
+            }).detach();
+        }
+    }
+
     inline LRESULT __stdcall WndProcHook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+        // 【硬核硬件光标守护】游戏底层维护了一个负数的隐藏层级，导致脱离小框后鼠标在游戏画面上彻底隐形。
+        // 这里我们在主线程通过 ShowCursor(TRUE) 将层级强制拉回 >=0 的可见状态！
+        bool isNativeTyping = NativeIME::isTyping.load();
+        static bool s_wasNativeTyping = false;
+        static int s_cursorForceCount = 0;
+        if (isNativeTyping && !s_wasNativeTyping) {
+            s_wasNativeTyping = true;
+            s_cursorForceCount = 0;
+            int currentCount = ShowCursor(TRUE);
+            s_cursorForceCount++;
+            while (currentCount < 0) {
+                currentCount = ShowCursor(TRUE);
+                s_cursorForceCount++;
+            }
+        } else if (!isNativeTyping && s_wasNativeTyping) {
+            s_wasNativeTyping = false;
+            while (s_cursorForceCount > 0) {
+                ShowCursor(FALSE);
+                s_cursorForceCount--;
+            }
+        }
+
+        // 【防暂停黑科技】欺骗游戏底层，防止因为唤出原生的中文输入窗口导致游戏自动暂停！
+        if (isNativeTyping) {
+            if (uMsg == WM_ACTIVATE && LOWORD(wParam) == WA_INACTIVE) return 0;
+            if (uMsg == WM_ACTIVATEAPP && wParam == FALSE) return 0;
+            if (uMsg == WM_KILLFOCUS) return 0;
+        }
+
         if (g_imguiInitialized && g_hasPlayer) {
             ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
             
             bool isTyping = false;
             if (ImGui::GetCurrentContext()) {
-                isTyping = ImGui::GetIO().WantCaptureKeyboard;
+                isTyping = ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantTextInput;
             }
 
-            if (uMsg == WM_KEYDOWN && wParam == 0x4D && !isTyping) {
-                CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
-                if (GetCursorInfo(&ci)) {
-                    if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
-                        return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
+            // 热键触发 (打字状态下失效，同时不影响原生聊天栏输入)
+            if (!isTyping && uMsg == WM_KEYDOWN) {
+                if (wParam == 0x4D || wParam == 0x55 || wParam == 0x4E || wParam == 0x59 || wParam == 0x4A) {
+                    CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
+                    if (GetCursorInfo(&ci)) {
+                        if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
+                            return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
+                        }
                     }
-                }
-                
-                MapRenderState::showBigMap = !MapRenderState::showBigMap;
-
-                if (MapRenderState::showBigMap) {
-                    MapRenderState::bigMapOffsetX = 0.0f;
-                    MapRenderState::bigMapOffsetZ = 0.0f;
-                }
-                return 1;
-            }
-            if (uMsg == WM_KEYDOWN && wParam == 0x55 && !isTyping) {
-                CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
-                if (GetCursorInfo(&ci)) {
-                    // 当处于游戏原生的聊天、物品栏等界面时（鼠标显示），不拦截按键
-                    if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
-                        return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
+                    if (wParam == 0x4D) { // M: 大地图
+                        NativeIME::Close();
+                        MapRenderState::showBigMap = !MapRenderState::showBigMap;
+                        if (MapRenderState::showBigMap) { MapRenderState::bigMapOffsetX = 0; MapRenderState::bigMapOffsetZ = 0; }
+                    } else if (wParam == 0x55) { // U: 路径点
+                        NativeIME::Close();
+                        MapRenderState::showWaypointUI = !MapRenderState::showWaypointUI;
+                    } else if (wParam == 0x4E) { // N: 小地图开关
+                        MapRenderState::showMiniMap = !MapRenderState::showMiniMap;
+                        LanguageManager::SaveConfig();
+                    } else if (wParam == 0x59) { // Y: 小地图形状
+                        if (MapRenderState::showMiniMap) { MapRenderState::isSquareMap = !MapRenderState::isSquareMap; LanguageManager::SaveConfig(); }
+                        else return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
+                    } else if (wParam == 0x4A) { // J: 旋转
+                        if (MapRenderState::showMiniMap) { MapRenderState::rotateMiniMap = !MapRenderState::rotateMiniMap; LanguageManager::SaveConfig(); }
+                        else return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
                     }
+                    return 1; 
                 }
-                MapRenderState::showWaypointUI = !MapRenderState::showWaypointUI;
-                return 1;
             }
 
-            if (uMsg == WM_KEYDOWN && wParam == 0x4E && !isTyping) {
-                CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
-                if (GetCursorInfo(&ci)) {
-                    if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
-                        return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
-                    }
-                }
-                MapRenderState::showMiniMap = !MapRenderState::showMiniMap;
-                LanguageManager::SaveConfig();
-                return 1;
-            }
-
-            if (uMsg == WM_KEYDOWN && wParam == 0x59 && !isTyping) {
-                if (!MapRenderState::showMiniMap) {
-                    return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
-                }
-                CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
-                if (GetCursorInfo(&ci)) {
-                    if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
-                        return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
-                    }
-                }
-                
-                // 仅在小地图显示时，才允许切换地图形状并拦截按键
-                if (MapRenderState::showMiniMap) {
-                    MapRenderState::isSquareMap = !MapRenderState::isSquareMap;
-                    LanguageManager::SaveConfig();
-                    return 1;
-                }
-                
-                // 如果小地图隐藏，则将按键透传给游戏处理
-                return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
-            }
-
-            if (uMsg == WM_KEYDOWN && wParam == 0x4A && !isTyping) {
-                if (!MapRenderState::showMiniMap) {
-                    return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
-                }
-                CURSORINFO ci = {}; ci.cbSize = sizeof(CURSORINFO);
-                if (GetCursorInfo(&ci)) {
-                    if (ci.flags == CURSOR_SHOWING && !MapRenderState::IsUIActive()) {
-                        return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
-                    }
-                }
-                
-                if (MapRenderState::showMiniMap) {
-                    MapRenderState::rotateMiniMap = !MapRenderState::rotateMiniMap;
-                    LanguageManager::SaveConfig();
-                    return 1;
-                }
-                
-                return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
-            }
-
+            // 模组 UI 激活时的拦截器（净化所有多余逻辑，安全防穿透）
             if (MapRenderState::IsUIActive()) {
                 ClipCursor(NULL);
                 if (uMsg == WM_KEYDOWN && wParam == VK_ESCAPE) {
+                    NativeIME::Close();
                     if (MapRenderState::showMiniMapPosSettings) {
-                        MapRenderState::showMiniMapPosSettings = false; // 触发回退操作
-                        MapRenderState::showBigMap = true; // 返回大地图
-                        return 1;
+                        MapRenderState::showMiniMapPosSettings = false; 
+                        MapRenderState::showBigMap = true; 
+                    } else {
+                        MapRenderState::showBigMap = false;
+                        MapRenderState::showWaypointUI = false; 
                     }
-                    MapRenderState::showBigMap = false;
-                    MapRenderState::showWaypointUI = false; 
                     return 1;
                 }
+                
+                // 【回归本源：修复被我误删的防穿透代码】吞噬多余鼠标信号，完美阻断挥臂
                 if (uMsg == WM_INPUT || uMsg == WM_INPUT_DEVICE_CHANGE) return 1;
                 if (uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST) return 1;
-                // 当处于 UI 状态时拦截所有按键（除F11外），且不再为快捷键开特例
-                // 但放行 WM_CHAR 等字符消息，以支持 IME 中文输入
-                if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST && uMsg != WM_CHAR && uMsg != WM_SYSCHAR && uMsg != WM_DEADCHAR && uMsg != WM_SYSDEADCHAR && wParam != VK_F11) return 1;
+
+                // 吞噬多余键盘按键，防止游戏内人物移动
+                if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST && wParam != VK_F11) {
+                    if (isTyping) {
+                        return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+                    }
+                    return 1; 
+                }
+                
                 if (uMsg == WM_SETCURSOR) { SetCursor(LoadCursor(NULL, IDC_ARROW)); return TRUE; }
             }
         }
@@ -1018,7 +1167,10 @@ namespace DX11Hook {
             ImGui::OpenPopup(modalId);
             trigger = false;
         }
-        if (ImGui::BeginPopupModal(modalId, NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        
+        bool isOpen = true;
+        // 传入 &isOpen 以在右上角渲染出打叉关闭按钮
+        if (ImGui::BeginPopupModal(modalId, &isOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
             static char renameBuf[256] = "";
             static bool initialized = false;
             
@@ -1039,7 +1191,16 @@ namespace DX11Hook {
                     initialized = true;
                 }
                 
-                ImGui::InputText(LanguageManager::GetText("WP_NAME"), renameBuf, sizeof(renameBuf));
+                ImGui::PushItemWidth(180);
+                ImGui::InputText("##RenInput", renameBuf, sizeof(renameBuf));
+                ImGui::PopItemWidth();
+                ImGui::SameLine();
+                if (ImGui::Button("\xe2\x9c\x8e##Ren")) { // U+270E Edit
+                    NativeIME::Open(renameBuf, sizeof(renameBuf), LanguageManager::GetText("WP_NAME"));
+                }
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", LanguageManager::GetText("NATIVE_IME_TOOLTIP"));
+                ImGui::SameLine();
+                ImGui::Text("%s", LanguageManager::GetText("WP_NAME"));
                 ImGui::Spacing();
                 
                 if (ImGui::Button(LanguageManager::GetText("WP_SAVE"), ImVec2(120, 0))) {
@@ -1055,13 +1216,23 @@ namespace DX11Hook {
                     WaypointManager::SaveWaypoints();
                     ImGui::CloseCurrentPopup();
                     initialized = false;
+                    NativeIME::Close();
                 }
                 ImGui::SameLine();
                 if (ImGui::Button(LanguageManager::GetText("WP_CANCEL"), ImVec2(120, 0))) {
                     ImGui::CloseCurrentPopup();
                     initialized = false;
+                    NativeIME::Close();
                 }
             }
+            
+            // 状态联动：如果玩家点击了右上角的 [X] 打叉按钮
+            if (!isOpen) {
+                ImGui::CloseCurrentPopup();
+                initialized = false;
+                NativeIME::Close();
+            }
+            
             ImGui::EndPopup();
         }
     }
@@ -1528,18 +1699,30 @@ namespace DX11Hook {
         ImGui::SetNextWindowSize(ImVec2(750, 480), ImGuiCond_FirstUseEver); 
         ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2 - 375, ImGui::GetIO().DisplaySize.y / 2 - 240), ImGuiCond_FirstUseEver);
         
+        // 记录管理器面板当前帧的开启状态
+        bool lastShowWPUI = MapRenderState::showWaypointUI;
+        
         ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
         if (ImGui::Begin(LanguageManager::GetText("WP_MANAGER_TITLE"), &MapRenderState::showWaypointUI, winFlags)) {
             
             static bool showAddPopup = false;
+            // 记录新建窗口当前帧的开启状态
+            bool lastShowAddPopup = showAddPopup;
             static char searchBuf[256] = "";
             
-            ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 150);
+            ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 190);
             ImGui::InputTextWithHint("##WPSearch", LanguageManager::GetText("SEARCH_HINT"), searchBuf, sizeof(searchBuf));
             ImGui::PopItemWidth();
             
             ImGui::SameLine();
+            if (ImGui::Button("\xe2\x9c\x8e##Search")) {
+                NativeIME::Open(searchBuf, sizeof(searchBuf), LanguageManager::GetText("SEARCH_HINT"));
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", LanguageManager::GetText("NATIVE_IME_TOOLTIP"));
+            
+            ImGui::SameLine();
             if (ImGui::Button(LanguageManager::GetText("NEW_WP_BUTTON"), ImVec2(140, 0))) {
+                NativeIME::Close();
                 showAddPopup = true;
             }
             ImGui::Separator();
@@ -1665,7 +1848,17 @@ namespace DX11Hook {
                     MapRenderState::addWaypointZ = -999999;
                 }
 
-                ImGui::InputText(LanguageManager::GetText("WP_NAME"), nameBuf, sizeof(nameBuf));
+                ImGui::PushItemWidth(180);
+                ImGui::InputText("##NewWPInput", nameBuf, sizeof(nameBuf));
+                ImGui::PopItemWidth();
+                ImGui::SameLine();
+                if (ImGui::Button("\xe2\x9c\x8e##NewWP")) {
+                    NativeIME::Open(nameBuf, sizeof(nameBuf), LanguageManager::GetText("WP_NAME"));
+                }
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", LanguageManager::GetText("NATIVE_IME_TOOLTIP"));
+                ImGui::SameLine();
+                ImGui::Text("%s", LanguageManager::GetText("WP_NAME"));
+                
                 ImGui::InputInt3("X / Y / Z", pos);
                 ImGui::ColorEdit3(LanguageManager::GetText("WP_COLOR"), col);
                 
@@ -1674,13 +1867,24 @@ namespace DX11Hook {
                     WaypointManager::AddWaypoint(nameBuf, pos[0], pos[1], pos[2], col[0], col[1], col[2]);
                     showAddPopup = false;
                     ImGui::CloseCurrentPopup();
+                    NativeIME::Close();
                 }
                 ImGui::SameLine();
                 if (ImGui::Button(LanguageManager::GetText("WP_CANCEL"), ImVec2(120, 0))) {
                     showAddPopup = false;
                     ImGui::CloseCurrentPopup();
+                    NativeIME::Close();
                 }
                 ImGui::EndPopup();
+            }
+            
+            // 状态跳变检测：点击右上角 [X] 关闭新建窗口时的联动销毁
+            if (lastShowAddPopup && !showAddPopup) {
+                NativeIME::Close();
+            }
+            // 状态跳变检测：点击右上角 [X] 关闭整个管理器面板时的联动销毁
+            if (lastShowWPUI && !MapRenderState::showWaypointUI) {
+                NativeIME::Close();
             }
         }
         ImGui::End();
@@ -1747,7 +1951,9 @@ namespace DX11Hook {
             auto renderImGuiFrame = [&](ID3D11RenderTargetView* rtv) {
                 g_pd3dDeviceContext->OMSetRenderTargets(1, &rtv, NULL);
                 ImGui_ImplDX11_NewFrame(); ImGui_ImplWin32_NewFrame(); ImGui::NewFrame();
-                ImGui::GetIO().MouseDrawCursor = MapRenderState::IsUIActive();
+                
+                // 【修复光标被覆盖】当原生文本框开启时，关闭 ImGui 的软件光标，将显示权交还给被我们强制唤醒的 Windows 硬件光标
+                ImGui::GetIO().MouseDrawCursor = MapRenderState::IsUIActive() && !NativeIME::isTyping.load();
 
                 UpdateSmoothCamera(); // 更新底层的无极平滑推测坐标！
 
