@@ -43,22 +43,6 @@ namespace WaypointManager {
     // 读取单个维度的路径点并标记所属维度
     void LoadDimension(int dim) {
         std::string f = DimensionFile(dim);
-        if (!std::filesystem::exists(f)) {
-            // 模糊前缀匹配 (应对由于出生点或种子提取延迟导致的文件名微调)
-            std::error_code ec;
-            std::string prefix = g_worldId.substr(0, g_worldId.find("_S"));
-            if (!prefix.empty() && std::filesystem::exists("mods/ChiyanMap/waypoints", ec)) {
-                for (const auto& entry : std::filesystem::directory_iterator("mods/ChiyanMap/waypoints", ec)) {
-                    if (entry.is_regular_file(ec)) {
-                        std::string fname = entry.path().filename().string();
-                        if (fname.rfind(prefix, 0) == 0 && fname.find("_dim" + std::to_string(dim) + ".json") != std::string::npos) {
-                            f = entry.path().string();
-                            break;
-                        }
-                    }
-                }
-            }
-        }
         if (!std::filesystem::exists(f)) return;
         std::ifstream in(f);
         if (!in.is_open()) return;
@@ -151,21 +135,6 @@ namespace WaypointManager {
 
         // 加载文件夹元数据
         std::string fPath = FoldersFile();
-        if (!std::filesystem::exists(fPath)) {
-            std::error_code ec;
-            std::string prefix = g_worldId.substr(0, g_worldId.find("_S"));
-            if (!prefix.empty() && std::filesystem::exists("mods/ChiyanMap/waypoints", ec)) {
-                for (const auto& entry : std::filesystem::directory_iterator("mods/ChiyanMap/waypoints", ec)) {
-                    if (entry.is_regular_file(ec)) {
-                        std::string fname = entry.path().filename().string();
-                        if (fname.rfind(prefix, 0) == 0 && fname.find("_folders.json") != std::string::npos) {
-                            fPath = entry.path().string();
-                            break;
-                        }
-                    }
-                }
-            }
-        }
         if (std::filesystem::exists(fPath)) {
             try {
                 std::ifstream fIn(fPath);
