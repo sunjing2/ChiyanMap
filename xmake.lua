@@ -3,7 +3,7 @@ add_rules("mode.debug", "mode.release")
 add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")
 
 -- 移除 target_type 选项配置，直接强制 LeviLamina 为 client 端
-add_requires("levilamina", {configs = {target_type = "client"}})
+add_requires("levilamina 26.40.6", {configs = {target_type = "client"}})
 
 add_requires("levibuildscript")
 add_requires("imgui", {configs = {shared = false, win32 = true, dx11 = true}})
@@ -43,3 +43,13 @@ target("ChiyanMap")
     add_files("src/**.cpp")
     add_includedirs("src")
     -- 完全移除服务端和客户端的 if-else 区分逻辑
+
+    after_build(function (target)
+        local lang_dir = path.join(os.projectdir(), "lang")
+        local dest_lang_dir = path.join(os.projectdir(), "bin", "ChiyanMap", "lang")
+        if os.isdir(lang_dir) then
+            os.mkdir(dest_lang_dir)
+            os.cp(path.join(lang_dir, "*"), dest_lang_dir)
+            cprint("${bright green}[ChiyanMap]: ${reset}copied lang files to " .. dest_lang_dir)
+        end
+    end)
