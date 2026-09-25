@@ -3,7 +3,7 @@ add_rules("mode.debug", "mode.release")
 add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")
 
 -- 移除 target_type 选项配置，直接强制 LeviLamina 为 client 端
-add_requires("levilamina 26.40.6", {configs = {target_type = "client"}})
+add_requires("levilamina", {configs = {target_type = "client"}})
 
 add_requires("levibuildscript")
 add_requires("imgui", {configs = {shared = false, win32 = true, dx11 = true}})
