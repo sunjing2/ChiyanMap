@@ -54,7 +54,7 @@
     "WP_TAB_END": "末地",
     "LANG_SELECT": "语言",
     "LOG_VERSION_MISMATCH": "【严重警告】游戏版本不适配！当前客户端版本为",
-    "LOG_VERSION_STRICT": "【严重警告】赤焰地图 (ChiyanMap) 底层拦截器当前严格限定仅兼容 1.26.40.05 版本！",
+    "LOG_VERSION_STRICT": "【严重警告】赤焰地图 (ChiyanMap) 底层拦截器当前严格限定仅兼容 1.26.51.01 版本！",
     "LOG_VERSION_ABORT": "【严重警告】为防止加载进入世界时发生 Access Violation 崩溃，模组已主动中止加载。",
     "LOG_VERSION_PASS": "游戏客户端版本验证通过",
     "LOG_VERSION_UNKNOWN": "无法识别当前游戏可执行文件的版本信息，已中止加载以防崩溃！",

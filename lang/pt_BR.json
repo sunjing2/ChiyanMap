@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "Novo Marcador",
     "LANG_SELECT": "Idioma",
     "LOG_VERSION_MISMATCH": "[CRÍTICO] Incompatibilidade de versão do jogo! Versão atual do cliente:",
-    "LOG_VERSION_STRICT": "[CRÍTICO] O ChiyanMap é compatível estritamente apenas com a versão 1.26.40.05!",
+    "LOG_VERSION_STRICT": "[CRÍTICO] O ChiyanMap é compatível estritamente apenas com a versão 1.26.51.01!",
     "LOG_VERSION_ABORT": "[CRÍTICO] Carregamento do mod abortado para evitar crashes de Violação de Acesso.",
     "LOG_VERSION_PASS": "Verificação da versão do cliente do jogo concluída",
     "LOG_VERSION_UNKNOWN": "Não foi possível identificar a versão do executável do jogo, tentando carregar à força...",

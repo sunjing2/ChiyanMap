@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "새 위치",
     "LANG_SELECT": "언어",
     "LOG_VERSION_MISMATCH": "[심각] 게임 버전이 일치하지 않습니다! 현재 클라이언트 버전:",
-    "LOG_VERSION_STRICT": "[심각] ChiyanMap은 엄격히 버전 1.26.40.05만 지원합니다!",
+    "LOG_VERSION_STRICT": "[심각] ChiyanMap은 엄격히 버전 1.26.51.01만 지원합니다!",
     "LOG_VERSION_ABORT": "[심각] Access Violation 충돌을 방지하기 위해 모드 로딩을 중단했습니다.",
     "LOG_VERSION_PASS": "게임 클라이언트 버전 확인을 통과했습니다",
     "LOG_VERSION_UNKNOWN": "게임 실행 파일 버전을 식별할 수 없어 강제 로드를 시도합니다...",

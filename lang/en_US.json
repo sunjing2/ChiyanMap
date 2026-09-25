@@ -54,7 +54,7 @@
     "WP_TAB_END": "The End",
     "LANG_SELECT": "Language",
     "LOG_VERSION_MISMATCH": "[CRITICAL] Game version mismatch! Current client version",
-    "LOG_VERSION_STRICT": "[CRITICAL] ChiyanMap strictly supports version 1.26.40.05 only!",
+    "LOG_VERSION_STRICT": "[CRITICAL] ChiyanMap strictly supports version 1.26.51.01 only!",
     "LOG_VERSION_ABORT": "[CRITICAL] Mod loading aborted to prevent Access Violation crashes.",
     "LOG_VERSION_PASS": "Game client version verification passed",
     "LOG_VERSION_UNKNOWN": "Unable to identify game executable version, loading aborted to prevent crashes.",

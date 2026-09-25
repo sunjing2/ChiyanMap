@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "Nouveau repère",
     "LANG_SELECT": "Langue",
     "LOG_VERSION_MISMATCH": "[CRITIQUE] Incompatibilité de version du jeu ! Version du client actuelle :",
-    "LOG_VERSION_STRICT": "[CRITIQUE] ChiyanMap ne prend en charge que la version 1.26.40.05 !",
+    "LOG_VERSION_STRICT": "[CRITIQUE] ChiyanMap ne prend en charge que la version 1.26.51.01 !",
     "LOG_VERSION_ABORT": "[CRITIQUE] Chargement du mod abandonné pour éviter les plantages par violation d'accès.",
     "LOG_VERSION_PASS": "Vérification de la version du client de jeu réussie",
     "LOG_VERSION_UNKNOWN": "Impossible d'identifier la version de l'exécutable du jeu, tentative de chargement forcé...",

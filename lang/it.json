@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "Nuovo waypoint",
     "LANG_SELECT": "Lingua",
     "LOG_VERSION_MISMATCH": "[CRITICO] Conflitto di versione del gioco! Versione client attuale:",
-    "LOG_VERSION_STRICT": "[CRITICO] ChiyanMap supporta rigorosamente solo la versione 1.26.40.05!",
+    "LOG_VERSION_STRICT": "[CRITICO] ChiyanMap supporta rigorosamente solo la versione 1.26.51.01!",
     "LOG_VERSION_ABORT": "[CRITICO] Caricamento della mod interrotto per evitare crash da violazione di accesso.",
     "LOG_VERSION_PASS": "Verifica della versione del client di gioco superata",
     "LOG_VERSION_UNKNOWN": "Impossibile identificare la versione dell'eseguibile di gioco, tentativo di caricamento forzato...",

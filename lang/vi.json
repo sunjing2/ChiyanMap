@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "Mốc mới",
     "LANG_SELECT": "Ngôn ngữ",
     "LOG_VERSION_MISMATCH": "[QUAN TRỌNG] Phiên bản game không khớp! Phiên bản client hiện tại:",
-    "LOG_VERSION_STRICT": "[QUAN TRỌNG] ChiyanMap chỉ hỗ trợ phiên bản 1.26.40.05!",
+    "LOG_VERSION_STRICT": "[QUAN TRỌNG] ChiyanMap chỉ hỗ trợ phiên bản 1.26.51.01!",
     "LOG_VERSION_ABORT": "[QUAN TRỌNG] Đã hủy tải mod để ngăn chặn sự cố Access Violation.",
     "LOG_VERSION_PASS": "Xác minh phiên bản client game đã qua",
     "LOG_VERSION_UNKNOWN": "Không thể xác định phiên bản tệp thực thi game, đang thử tải bắt buộc...",
