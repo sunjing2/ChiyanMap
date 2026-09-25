@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "新規ポイント",
     "LANG_SELECT": "言語",
     "LOG_VERSION_MISMATCH": "[重大] ゲームのバージョンが一致しません！現在のクライアントバージョン：",
-    "LOG_VERSION_STRICT": "[重大] ChiyanMap は厳密にバージョン 1.26.40.05 のみをサポートしています！",
+    "LOG_VERSION_STRICT": "[重大] ChiyanMap は厳密にバージョン 1.26.51.01 のみをサポートしています！",
     "LOG_VERSION_ABORT": "[重大] Access Violation クラッシュを防ぐため、Mod の読み込みを中止しました。",
     "LOG_VERSION_PASS": "ゲームクライアントのバージョン確認に成功しました",
     "LOG_VERSION_UNKNOWN": "ゲーム実行ファイルのバージョンを特定できません。強制的に読み込みを試みます...",

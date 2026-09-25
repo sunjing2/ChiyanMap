@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "Yeni Isaret",
     "LANG_SELECT": "Dil",
     "LOG_VERSION_MISMATCH": "[KRİTİK] Oyun sürümü uyuşmuyor! Mevcut istemci sürümü:",
-    "LOG_VERSION_STRICT": "[KRİTİK] ChiyanMap yalnızca sürüm 1.26.40.05'ü destekler!",
+    "LOG_VERSION_STRICT": "[KRİTİK] ChiyanMap yalnızca sürüm 1.26.51.01'ü destekler!",
     "LOG_VERSION_ABORT": "[KRİTİK] Access Violation çökmelerini önlemek için mod yüklemesi durduruldu.",
     "LOG_VERSION_PASS": "Oyun istemci sürümü doğrulaması başarılı",
     "LOG_VERSION_UNKNOWN": "Oyun yürütülebilir dosya sürümü tanımlanamadı, zorla yükleme deneniyor...",

@@ -47,7 +47,7 @@
     "WP_DEFAULT_NAME": "Titik Jalan Baru",
     "LANG_SELECT": "Bahasa",
     "LOG_VERSION_MISMATCH": "[KRITIS] Ketidakcocokan versi game! Versi klien saat ini:",
-    "LOG_VERSION_STRICT": "[KRITIS] ChiyanMap hanya mendukung versi 1.26.40.05!",
+    "LOG_VERSION_STRICT": "[KRITIS] ChiyanMap hanya mendukung versi 1.26.51.01!",
     "LOG_VERSION_ABORT": "[KRITIS] Pemuanan mod dibatalkan untuk mencegah crash Access Violation.",
     "LOG_VERSION_PASS": "Verifikasi versi klien game berhasil",
     "LOG_VERSION_UNKNOWN": "Tidak dapat mengidentifikasi versi executable game, mencoba memaksa muat...",

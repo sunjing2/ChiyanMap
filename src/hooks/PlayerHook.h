@@ -55,6 +55,7 @@ using ChiyanMapMaterialType = ::SharedTypes::v1_26_20::MaterialType;
 #include <mc/world/actor/player/PlayerInventory.h>
 #include <mc/world/actor/player/Inventory.h>
 #include <mc/world/item/ItemStack.h>
+#include <mc/world/item/HandSlot.h>
 #include <mc/deps/core/math/Vec2.h>
 #include <mc/world/phys/HitResult.h>
 #include "state/MapRenderState.h"
@@ -2846,7 +2847,7 @@ inline void LogTeleport(const std::string& message) {
 // 等价于聊天栏输入指令，服务器端执行，避免客户端回弹
 // ==========================================
 inline void SendServerCommand(Player& player, std::string const& cmd) {
-    auto origin = std::make_unique<PlayerCommandOrigin>(player);
+    auto origin = std::make_unique<PlayerCommandOrigin>(player.getLevel(), player.getOrCreateUniqueID());
     CommandContext ctx(cmd, std::move(origin), (int)CurrentCmdVersion::Latest);
     CommandRequestPacketPayload payload(ctx, false);
     CommandRequestPacket packet(std::move(payload));
@@ -5487,11 +5488,12 @@ LL_TYPE_INSTANCE_HOOK(
     GameMode,
     &GameMode::$useItem,
     bool,
-    ItemStack& item
+    ItemStack& item,
+    HandSlot handSlot
 ) {
-    if (MapRenderState::g_isShuttingDown.load()) return origin(item);
+    if (MapRenderState::g_isShuttingDown.load()) return origin(item, handSlot);
     if (MapRenderState::IsUIActive()) return false;
-    return origin(item);
+    return origin(item, handSlot);
 }
 
 LL_TYPE_INSTANCE_HOOK(
@@ -5556,11 +5558,12 @@ LL_TYPE_INSTANCE_HOOK(
     LocalPlayer,
     &LocalPlayer::$swing,
     bool,
-    ActorSwingSource swingSource
+    ActorSwingSource swingSource,
+    HandSlot handSlot
 ) {
-    if (MapRenderState::g_isShuttingDown.load()) return origin(swingSource);
+    if (MapRenderState::g_isShuttingDown.load()) return origin(swingSource, handSlot);
     if (MapRenderState::IsUIActive()) return false;
-    return origin(swingSource);
+    return origin(swingSource, handSlot);
 }
 
 // 【彻底阻断打空气音效】当模组 UI 激活时，拦截打空/未击中逻辑，消除 AttackNoDamage 音效与发包
@@ -5583,11 +5586,12 @@ LL_TYPE_INSTANCE_HOOK(
     &GameMode::$interact,
     bool,
     Actor& entity,
-    Vec3 const& location
+    Vec3 const& location,
+    HandSlot handSlot
 ) {
-    if (MapRenderState::g_isShuttingDown.load()) return origin(entity, location);
+    if (MapRenderState::g_isShuttingDown.load()) return origin(entity, location, handSlot);
     if (MapRenderState::IsUIActive()) return false;
-    return origin(entity, location);
+    return origin(entity, location, handSlot);
 }
 
 LL_TYPE_INSTANCE_HOOK(
@@ -5597,11 +5601,12 @@ LL_TYPE_INSTANCE_HOOK(
     &GameMode::$useItemAsAttack,
     bool,
     ItemStack& item,
-    Vec3 const& aimDirection
+    Vec3 const& aimDirection,
+    HandSlot handSlot
 ) {
-    if (MapRenderState::g_isShuttingDown.load()) return origin(item, aimDirection);
+    if (MapRenderState::g_isShuttingDown.load()) return origin(item, aimDirection, handSlot);
     if (MapRenderState::IsUIActive()) return false;
-    return origin(item, aimDirection);
+    return origin(item, aimDirection, handSlot);
 }
 
 LL_TYPE_INSTANCE_HOOK(
@@ -5614,12 +5619,13 @@ LL_TYPE_INSTANCE_HOOK(
     BlockPos const& pos,
     unsigned char face,
     Vec3 const& hitPos,
+    HandSlot handSlot,
     Block const* block,
     bool isFirstEvent
 ) {
-    if (MapRenderState::g_isShuttingDown.load()) return origin(item, pos, face, hitPos, block, isFirstEvent);
+    if (MapRenderState::g_isShuttingDown.load()) return origin(item, pos, face, hitPos, handSlot, block, isFirstEvent);
     if (MapRenderState::IsUIActive()) return InteractionResult{false, false};
-    return origin(item, pos, face, hitPos, block, isFirstEvent);
+    return origin(item, pos, face, hitPos, handSlot, block, isFirstEvent);
 }
 
 LL_TYPE_INSTANCE_HOOK(
@@ -5694,9 +5700,10 @@ LL_TYPE_INSTANCE_HOOK(
     GameMode,
     &GameMode::baseUseItem,
     bool,
-    ItemStack const& item
+    ItemStack const& item,
+    HandSlot handSlot
 ) {
-    if (MapRenderState::g_isShuttingDown.load()) return origin(item);
+    if (MapRenderState::g_isShuttingDown.load()) return origin(item, handSlot);
     if (MapRenderState::IsUIActive()) return false;
-    return origin(item);
+    return origin(item, handSlot);
 }
