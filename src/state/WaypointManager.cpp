@@ -43,6 +43,24 @@ namespace WaypointManager {
     // 读取单个维度的路径点并标记所属维度
     void LoadDimension(int dim) {
         std::string f = DimensionFile(dim);
+        if (!std::filesystem::exists(f)) {
+            std::string rawLevelId = g_worldId;
+            size_t sPos = rawLevelId.find("_S");
+            if (sPos != std::string::npos) rawLevelId = rawLevelId.substr(0, sPos);
+            std::error_code ec;
+            std::string wpDir = "mods/ChiyanMap/waypoints";
+            if (std::filesystem::is_directory(wpDir, ec)) {
+                for (auto const& entry : std::filesystem::directory_iterator(wpDir, ec)) {
+                    if (!entry.is_regular_file()) continue;
+                    std::string fn = entry.path().filename().string();
+                    std::string targetSuffix = "_dim" + std::to_string(dim) + ".json";
+                    if (fn.rfind(rawLevelId, 0) == 0 && fn.ends_with(targetSuffix)) {
+                        f = entry.path().string();
+                        break;
+                    }
+                }
+            }
+        }
         if (!std::filesystem::exists(f)) return;
         std::ifstream in(f);
         if (!in.is_open()) return;
@@ -135,6 +153,23 @@ namespace WaypointManager {
 
         // 加载文件夹元数据
         std::string fPath = FoldersFile();
+        if (!std::filesystem::exists(fPath)) {
+            std::string rawLevelId = g_worldId;
+            size_t sPos = rawLevelId.find("_S");
+            if (sPos != std::string::npos) rawLevelId = rawLevelId.substr(0, sPos);
+            std::error_code ec;
+            std::string wpDir = "mods/ChiyanMap/waypoints";
+            if (std::filesystem::is_directory(wpDir, ec)) {
+                for (auto const& entry : std::filesystem::directory_iterator(wpDir, ec)) {
+                    if (!entry.is_regular_file()) continue;
+                    std::string fn = entry.path().filename().string();
+                    if (fn.rfind(rawLevelId, 0) == 0 && fn.ends_with("_folders.json")) {
+                        fPath = entry.path().string();
+                        break;
+                    }
+                }
+            }
+        }
         if (std::filesystem::exists(fPath)) {
             try {
                 std::ifstream fIn(fPath);
@@ -169,7 +204,7 @@ namespace WaypointManager {
         LoadWaypoints();
     }
 
-    void AddWaypoint(const std::string& name, int x, int y, int z, float r, float g, float b, int dimId, bool pinned, const std::string& folder) {
+    std::string AddWaypoint(const std::string& name, int x, int y, int z, float r, float g, float b, int dimId, bool pinned, const std::string& folder) {
         Waypoint wp;
         wp.id = GenerateID();
         wp.name = name;
@@ -189,6 +224,7 @@ namespace WaypointManager {
             g_waypoints.push_back(wp);
         }
         SaveWaypoints();
+        return wp.id;
     }
 
     void RemoveWaypoint(const std::string& id) {

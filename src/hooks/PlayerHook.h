@@ -34,10 +34,12 @@ using ChiyanMapMaterialType = ::MaterialType;
 using ChiyanMapMaterialType = ::SharedTypes::v1_26_20::MaterialType;
 #endif
 #include "state/WaypointManager.h"
+#include "state/DeathPointManager.h"
 #include <mc/world/level/BlockPos.h>
 #include <mc/deps/core/math/Vec3.h>
 #include <mc/world/level/Level.h>
 #include <mc/world/actor/Actor.h>
+#include <mc/legacy/ActorRuntimeID.h>
 #include <mc/world/effect/MobEffectInstance.h>
 #include <mc/server/commands/CommandContext.h>
 #include <mc/server/commands/CommandOrigin.h>
@@ -58,10 +60,187 @@ using ChiyanMapMaterialType = ::SharedTypes::v1_26_20::MaterialType;
 #include <mc/world/item/HandSlot.h>
 #include <mc/deps/core/math/Vec2.h>
 #include <mc/world/phys/HitResult.h>
+#include <mc/world/actor/player/SerializedSkinRef.h>
+#include <mc/world/actor/player/SerializedSkinImpl.h>
+#include <mc/world/actor/player/SkinImage.h>
+#include <mc/deps/core/image/Image.h>
+#include <mc/platform/UUID.h>
 #include "state/MapRenderState.h"
 #include "state/MapCacheManager.h"
 #include "state/LanguageManager.h"
+#include "state/SeedMapManager.h"
 #include "mod/ChiyanMap.h"
+#include <mc/world/level/LevelSeed64.h>
+
+struct CapturedLevelSeed final {
+    ChiyanMap::WorldGen::SeedSnapshot seed = ChiyanMap::WorldGen::SeedSnapshot::Unavailable();
+    std::optional<std::uint64_t> rawBits;
+};
+
+inline CapturedLevelSeed CaptureLevelSeedSnapshot(Level const& level) noexcept {
+    try {
+        const LevelSeed64 seed = level.getLevelSeed64();
+        const auto seedBits = static_cast<std::uint64_t>(seed.mValue);
+        if (ChiyanMap::WorldGen::IsUsableCapturedBedrockSeed(seedBits)) {
+            return {ChiyanMap::WorldGen::SeedSnapshot::FromSeedBits(seedBits), seedBits};
+        }
+    } catch (...) {}
+
+    try {
+        const auto seed32 = const_cast<Level&>(level).getSeed();
+        const auto seedBits = static_cast<std::uint64_t>(seed32);
+        if (ChiyanMap::WorldGen::IsUsableCapturedBedrockSeed(seedBits)) {
+            return {ChiyanMap::WorldGen::SeedSnapshot::FromSeedBits(seedBits), seedBits};
+        }
+    } catch (...) {}
+
+    return {};
+}
+
+inline uint64_t HashPlayerSkinHead(const uint8_t* pixels, size_t size) {
+    uint64_t hash = 1469598103934665603ull;
+    for (size_t i = 0; i < size; ++i) {
+        hash ^= pixels[i];
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+inline void InvalidatePlayerSkinHead(const std::string& uuid) {
+    if (uuid.empty()) return;
+    std::lock_guard<std::mutex> lock(g_playerSkinMutex);
+    auto it = g_playerSkinHeads.find(uuid);
+    if (it != g_playerSkinHeads.end() && it->second.valid) {
+        it->second.valid = false;
+        ++it->second.revision;
+    }
+}
+
+inline bool IsRadarPlayerLike(Actor const& actor) {
+    const std::string typeName = actor.getTypeName();
+    return actor.isPlayer()
+        || actor.hasCategory(ActorCategory::Player)
+        || typeName == "player"
+        || typeName == "minecraft:player";
+}
+
+inline bool IsLocalRadarActor(ClientInstance const& clientInstance, LocalPlayer const& localPlayer, Actor const& actor) {
+    if (&actor == static_cast<Actor const*>(&localPlayer)) return true;
+
+    if (actor.hasRuntimeID() && localPlayer.hasRuntimeID()
+        && actor.getRuntimeID() == localPlayer.getRuntimeID()) {
+        return true;
+    }
+
+    if (!IsRadarPlayerLike(actor)) return false;
+
+    const auto& actorUniqueId = actor.getOrCreateUniqueID();
+    if (actorUniqueId == localPlayer.getOrCreateUniqueID()
+        || clientInstance.isLocalSplitscreenWith(actorUniqueId)) {
+        return true;
+    }
+
+    if (actor.isPlayer()) {
+        auto const& candidatePlayer = static_cast<Player const&>(actor);
+        if (candidatePlayer.getUuid() == localPlayer.getUuid()) return true;
+
+        const auto localXuid = localPlayer.getXuid();
+        const auto candidateXuid = candidatePlayer.getXuid();
+        if (!localXuid.empty() && candidateXuid == localXuid) return true;
+    }
+
+    // Some servers mirror the local client as a separate network player entity.
+    // That proxy has different actor IDs and UUID, but retains the player's name tag.
+    auto const& localNameTag = localPlayer.getNameTag();
+    return !localNameTag.empty() && actor.getNameTag() == localNameTag;
+}
+
+// 提取并合成玩家皮肤的 8x8 头部正面与外层（帽子/头盔层）
+inline void ExtractPlayerSkinHead(class Player* player, const std::string& uuid) {
+    if (!player || uuid.empty()) return;
+    try {
+        if (!player->mSkin) {
+            InvalidatePlayerSkinHead(uuid);
+            return;
+        }
+        auto& skinRef = *player->mSkin;
+        if (!skinRef.mSkinImpl) {
+            InvalidatePlayerSkinHead(uuid);
+            return;
+        }
+        auto& threadOwner = *skinRef.mSkinImpl;
+        auto& skinImpl = threadOwner.mObject;
+        if (skinImpl.mIsPersona) {
+            InvalidatePlayerSkinHead(uuid);
+            return;
+        }
+        auto& skinImage = skinImpl.mSkinImage.get();
+        auto& img = static_cast<mce::Image&>(skinImage);
+        if (img.imageFormat != mce::ImageFormat::RGBA8Unorm || img.mWidth < 8 || img.mHeight < 16 || img.mWidth % 8 != 0) {
+            InvalidatePlayerSkinHead(uuid);
+            return;
+        }
+        const uint8_t* pixels = img.mImageBytes.data();
+        if (!pixels) {
+            InvalidatePlayerSkinHead(uuid);
+            return;
+        }
+
+        const int unit = static_cast<int>(img.mWidth) / 8;
+        const int baseHeadX = unit;
+        const int baseHeadY = unit;
+        const int outerHeadX = unit * 5;
+        if (unit < 8 || baseHeadY + unit > static_cast<int>(img.mHeight) || outerHeadX + unit > static_cast<int>(img.mWidth)) {
+            InvalidatePlayerSkinHead(uuid);
+            return;
+        }
+
+        PlayerSkinHead head;
+        for (int y = 0; y < 8; ++y) {
+            const int sourceY0 = baseHeadY + (y * unit) / 8;
+            const int sourceY1 = baseHeadY + ((y + 1) * unit) / 8;
+            for (int x = 0; x < 8; ++x) {
+                const int sourceX0 = baseHeadX + (x * unit) / 8;
+                const int sourceX1 = baseHeadX + ((x + 1) * unit) / 8;
+                uint32_t totals[4]{};
+                uint32_t sampleCount = 0;
+                for (int sourceY = sourceY0; sourceY < sourceY1; ++sourceY) {
+                    for (int sourceX = sourceX0; sourceX < sourceX1; ++sourceX) {
+                        const uint8_t* base = pixels + (sourceY * static_cast<int>(img.mWidth) + sourceX) * 4;
+                        const uint8_t* outer = pixels + (sourceY * static_cast<int>(img.mWidth) + outerHeadX + (sourceX - baseHeadX)) * 4;
+                        const uint32_t outerAlpha = outer[3];
+                        const uint32_t inverseOuterAlpha = 255 - outerAlpha;
+                        const uint32_t baseAlpha = base[3];
+                        const uint32_t outputAlpha = outerAlpha + (baseAlpha * inverseOuterAlpha + 127) / 255;
+                        for (int channel = 0; channel < 3; ++channel) {
+                            const uint32_t premultiplied = outer[channel] * outerAlpha
+                                + (base[channel] * baseAlpha * inverseOuterAlpha + 127) / 255;
+                            totals[channel] += outputAlpha == 0
+                                ? 0
+                                : (premultiplied + outputAlpha / 2) / outputAlpha;
+                        }
+                        totals[3] += outputAlpha;
+                        ++sampleCount;
+                    }
+                }
+                const int destination = (y * 8 + x) * 4;
+                for (int channel = 0; channel < 4; ++channel) {
+                    head.pixels[destination + channel] = static_cast<uint8_t>((totals[channel] + sampleCount / 2) / sampleCount);
+                }
+            }
+        }
+        head.fingerprint = HashPlayerSkinHead(head.pixels, sizeof(head.pixels));
+        head.valid = true;
+        std::lock_guard<std::mutex> lock(g_playerSkinMutex);
+        auto& cachedHead = g_playerSkinHeads[uuid];
+        if (cachedHead.valid && cachedHead.fingerprint == head.fingerprint
+            && std::memcmp(cachedHead.pixels, head.pixels, sizeof(head.pixels)) == 0) {
+            return;
+        }
+        head.revision = cachedHead.revision + 1;
+        g_playerSkinHeads[uuid] = head;
+    } catch (...) {}
+}
 
 extern float g_playerX;
 extern float g_playerY;
@@ -99,6 +278,33 @@ inline int g_cacheWriteDim = 0;
 inline bool g_cacheWriteIsCave = false;
 inline std::vector<MapCacheManager::BiomeEntry> g_cacheWriteBiomes;
 
+inline int g_currentScanX = -99999;
+inline int g_currentScanZ = -99999;
+inline bool g_isScanning = false;
+inline int g_scanPhase = 0; // 0 = 核心视野同心环 [0, SCAN_INNER_RADIUS], 1 = 外围全图同心环 [SCAN_INNER_RADIUS+1, MAP_DATA_RADIUS]
+inline int g_scanRadius = 0;
+inline int g_scanPerimeterIndex = 0;
+inline int g_ticksSinceScan = 0;
+inline std::vector<MapCacheManager::BiomeEntry> g_scanBiomeEntries;
+inline int g_caveDetectCooldown = 0;
+inline int g_scanPrevDimension = 0;
+inline bool g_scanPrevCaveActive = false;
+inline int g_scanDimension = -999;
+
+inline void AbortActiveScanAndPendingWrites() {
+    g_cacheWritePending.store(false);
+    g_cacheWriteBiomes.clear();
+    g_cacheWriteCV.notify_one();
+
+    g_isScanning = false;
+    g_scanPhase = 0;
+    g_scanRadius = 0;
+    g_scanPerimeterIndex = 0;
+    g_ticksSinceScan = 101;
+    g_scanBiomeEntries.clear();
+    // [防黑块核心] 严禁盲目置零后台缓冲！置零会导致跑图平移或模式重试期间出现数秒黑色空洞。
+}
+
 inline void CacheWriteWorkerFunc() {
     while (true) {
         {
@@ -109,18 +315,22 @@ inline void CacheWriteWorkerFunc() {
 
         if (MapRenderState::g_isShuttingDown.load()) {
             g_cacheWritePending.store(false);
+            g_cacheWriteBiomes.clear();
             continue;
         }
-        if (MapRenderState::currentDimensionId != g_cacheWriteDim) {
+        // 严格核验：待写维度必须与当前物理维度以及缓存加载维度完全匹配
+        if (MapRenderState::currentDimensionId != g_cacheWriteDim ||
+            MapCacheManager::GetLoadedDimensionId() != g_cacheWriteDim) {
             g_cacheWritePending.store(false);
+            g_cacheWriteBiomes.clear();
             continue;
         }
 
         // [修复] 包裹 try-catch 防止 UpdateFromScan/UpdateBiomesFromScan 抛异常
         // 导致 std::terminate → 0xC0000409 FAST_FAIL_FATAL_APP_EXIT
         try {
-            MapCacheManager::UpdateFromScan(g_cacheWriteX, g_cacheWriteZ, g_cacheWriteColors, g_cacheWriteHeights, g_cacheWriteIsCave);
-            MapCacheManager::UpdateBiomesFromScan(g_cacheWriteBiomes);
+            MapCacheManager::UpdateFromScan(g_cacheWriteDim, g_cacheWriteX, g_cacheWriteZ, g_cacheWriteColors, g_cacheWriteHeights, g_cacheWriteIsCave);
+            MapCacheManager::UpdateBiomesFromScan(g_cacheWriteDim, g_cacheWriteBiomes);
         } catch (...) {
             // 异常时仍需复位状态，避免 pending 永远卡住
         }
@@ -132,6 +342,8 @@ inline void CacheWriteWorkerFunc() {
 // 提交缓存写入请求 (非阻塞，若 worker 仍在处理上一次请求则跳过)
 inline void SubmitCacheWrite(int x, int z, int dim, bool isCave, std::vector<MapCacheManager::BiomeEntry>& biomes) {
     if (g_cacheWritePending.load()) return;  // worker 忙，跳过 (数据已在前台缓冲，下次扫描会再写)
+    if (MapRenderState::currentDimensionId != dim) return; // 提交时校验物理维度
+    if (MapCacheManager::GetLoadedDimensionId() != dim) return; // 提交时校验加载维度
 
     // 懒启动持久化 worker 线程
     if (!g_cacheWriteThread) {
@@ -208,6 +420,58 @@ inline void ShiftScanGrid(T (&grid)[MAP_DATA_SIZE][MAP_DATA_SIZE], int shiftX, i
                 std::memset(grid[x], 0, (size_t)s * sizeof(grid[x][0]));
             }
         }
+    }
+}
+
+// ==========================================
+// [跑图跟随] GPU 纹理数据平移工具 (与 ShiftScanGrid 严格保持几何同步)
+// ==========================================
+inline void ShiftTextureData(uint8_t* tex, int shiftX, int shiftZ) noexcept {
+    if (!tex || (shiftX == 0 && shiftZ == 0)) return;
+    constexpr int N = MAP_DATA_SIZE;
+    // g_textureData 排布: index = (z * N + x) * 4
+    if (shiftZ != 0) {
+        if (shiftZ > 0) {
+            std::memmove(tex, tex + (size_t)shiftZ * N * 4, (size_t)(N - shiftZ) * N * 4);
+            std::memset(tex + (size_t)(N - shiftZ) * N * 4, 0, (size_t)shiftZ * N * 4);
+        } else {
+            int s = -shiftZ;
+            std::memmove(tex + (size_t)s * N * 4, tex, (size_t)(N - s) * N * 4);
+            std::memset(tex, 0, (size_t)s * N * 4);
+        }
+    }
+    if (shiftX != 0) {
+        for (int z = 0; z < N; z++) {
+            uint8_t* row = tex + (size_t)z * N * 4;
+            if (shiftX > 0) {
+                std::memmove(row, row + (size_t)shiftX * 4, (size_t)(N - shiftX) * 4);
+                std::memset(row + (size_t)(N - shiftX) * 4, 0, (size_t)shiftX * 4);
+            } else {
+                int s = -shiftX;
+                std::memmove(row + (size_t)s * 4, row, (size_t)(N - s) * 4);
+                std::memset(row, 0, (size_t)s * 4);
+            }
+        }
+    }
+}
+
+// ==========================================
+// [同心方环扫描] 由中心向外辐射遍历方环周界坐标 (dx, dz)
+// 半径 r=0 仅包含 1 个点 (0,0)；半径 r>0 包含 8r 个周界点
+// ==========================================
+inline void GetRingCoords(int r, int i, int& dx, int& dz) noexcept {
+    if (r == 0) {
+        dx = 0; dz = 0;
+        return;
+    }
+    int K = 2 * r;
+    int seg = i / K;
+    int off = i % K;
+    switch (seg) {
+        case 0: dx = -r + off; dz = -r; break; // 北边缘：向东移动
+        case 1: dx = r; dz = -r + off; break; // 东边缘：向南移动
+        case 2: dx = r - off; dz = r; break;  // 南边缘：向西移动
+        default: dx = -r; dz = r - off; break; // 西边缘：向北移动
     }
 }
 
@@ -850,6 +1114,54 @@ inline bool IsInvisibleOrTechnicalOverlay(std::string const& rawName) noexcept {
     return false;
 }
 
+// [原木与菌柄判断] 检测方块是否为有年轮/树皮朝向区分的原木或菌柄
+inline bool IsPillarLogOrStem(std::string const& rawName) noexcept {
+    if (rawName.empty()) return false;
+    std::string name = rawName;
+    for (char& c : name) if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
+    if (name.find("wood") != std::string::npos || name.find("hyphae") != std::string::npos) return false;
+    if (name.find("log") != std::string::npos) return true;
+    if (name.find("crimson_stem") != std::string::npos || name.find("warped_stem") != std::string::npos) return true;
+    return false;
+}
+
+// [水平放置原木转树皮名称] 水平放置时映射为对应树皮材质 (_log -> _wood, _stem -> _hyphae)
+inline std::string GetHorizontalWoodName(std::string const& name) {
+    std::string result = name;
+    size_t pos = result.find("stem");
+    if (pos != std::string::npos) {
+        result.replace(pos, 4, "hyphae");
+        return result;
+    }
+    pos = result.find("log");
+    if (pos != std::string::npos) {
+        result.replace(pos, 3, "wood");
+        return result;
+    }
+    return result;
+}
+
+// [原木朝向判断] 判断原木或菌柄是否水平放置 (X轴或Z轴，顶面显示树皮侧面而非年轮横截面)
+inline bool IsBlockPillarHorizontal(Block const& block) noexcept {
+    try {
+        static const HashedString s_axisKey("pillar_axis");
+        auto const* stateMap = block.getBlockType().mStateNameMap.operator->();
+        if (stateMap) {
+            auto it = stateMap->find(s_axisKey);
+            if (it != stateMap->end()) {
+                auto val = block.getState<int>(it->second);
+                if (val.has_value()) {
+                    return *val != 0; // 0 = Y (垂直，年轮向上), 1 = X (水平，树皮向上), 2 = Z (水平，树皮向上)
+                }
+            }
+        }
+    } catch (...) {}
+
+    // 兜底回退：基岩版传统方块数据位 2-3（0=Y, 1=X, 2=Z, 3=全树皮）
+    ushort d = block.getData();
+    return ((d >> 2) & 3) != 0;
+}
+
 inline mce::Color getBlockColor(std::string const& rawName, mce::Color grassCol, mce::Color foliageCol, mce::Color waterCol) {
     // 统一转为全小写，杜绝基岩版 camelCase 命名（如 invisibleBedrock, seaLantern, tripWire, concretePowder）匹配问题
     std::string name = rawName;
@@ -1030,7 +1342,7 @@ inline mce::Color getBlockColor(std::string const& rawName, mce::Color grassCol,
         {"cherry_fence_gate", mce::Color(0.902f, 0.749f, 0.725f, 1.00f)},
         {"cherry_hanging_sign", mce::Color(0.725f, 0.506f, 0.533f, 1.00f)},
         {"cherry_leaves", mce::Color(0.900f, 0.650f, 0.750f, 1.00f)},
-        {"cherry_log", mce::Color(0.212f, 0.125f, 0.173f, 1.00f)},
+        {"cherry_log", mce::Color(0.890f, 0.690f, 0.700f, 1.00f)},
         {"cherry_planks", mce::Color(0.902f, 0.749f, 0.725f, 1.00f)},
         {"cherry_pressure_plate", mce::Color(0.902f, 0.749f, 0.725f, 1.00f)},
         {"cherry_sapling", mce::Color(0.643f, 0.463f, 0.561f, 1.00f)},
@@ -3292,6 +3604,9 @@ inline bool ScanColumnCave(BlockSource& region, int x, int z, int startY, int ca
             if (IsCavePassableBlock(block)) continue;  // 通道内的空气或可穿透方块
             // 命中地板/墙壁方块
             outBlockName = block.getTypeName();
+            if (IsPillarLogOrStem(outBlockName) && IsBlockPillarHorizontal(block)) {
+                outBlockName = GetHorizontalWoodName(outBlockName);
+            }
             outBlockY = y;
             outDepth = depth;
             outHasWater = hasWater;
@@ -3703,7 +4018,7 @@ inline short FindBestNetherSpawnInColumn(BlockSource& region, int x, int z, int 
                 openSides++;
             }
         }
-        if (openSides < 2) continue;
+        if (openSides < 1) continue; // 至少保证一侧水平畅通，绝不落在 4 面实心石缝中
 
         // 5. 测量实际净空高度
         int headroom = 3;
@@ -3716,8 +4031,8 @@ inline short FindBestNetherSpawnInColumn(BlockSource& region, int x, int z, int 
             }
         }
 
-        // 6. 综合评分
-        int score = headroom * 12 + openSides * 15;
+        // 6. 综合评分：净空越高、四周越开阔得分越高，更优先开阔大溶洞地面
+        int score = headroom * 12 + openSides * 20;
         int targetRef = (preferredY >= 33 && preferredY <= 100) ? preferredY : 64;
         score -= std::abs(y - targetRef) * 2;
 
@@ -3920,16 +4235,13 @@ inline short SafeFindSafeSpawnY(BlockSource& region, int x, int z, int dimId = 0
             // 下界传送:
             // 1. 若大地图已保存具体坐标点的高度 (已探索区域), 优先在保存高度附近查找
             int16_t cachedNetherY = MapCacheManager::GetCachedSurfaceHeight(x, z, true);
-            if (cachedNetherY != MapCacheManager::HEIGHT_UNKNOWN && cachedNetherY > 0) {
-                int outScore = -1;
-                short bestY = FindBestNetherSpawnInColumn(region, x, z, (int)cachedNetherY + 1, outScore);
-                if (bestY > -64) return bestY;
-                return SafeFindSafeSpawnYNearY(region, x, z, cachedNetherY + 1, 2, 125, 1);
+            int prefY = 64;
+            if (cachedNetherY != MapCacheManager::HEIGHT_UNKNOWN && cachedNetherY >= 33 && cachedNetherY <= 100) {
+                prefY = (int)cachedNetherY + 1;
             }
-            // 2. 未保存具体坐标点的位置或未去过的区域: 寻找纵向最佳开阔下界洞穴地面 (避开天花板夹层)
             int outScore = -1;
-            short bestY = FindBestNetherSpawnInColumn(region, x, z, 64, outScore);
-            if (bestY > -64) return bestY;
+            short bestY = FindBestNetherSpawnInColumn(region, x, z, prefY, outScore);
+            if (bestY >= 33 && bestY <= 100) return bestY;
             return -32000;
         }
 
@@ -4099,6 +4411,14 @@ LL_TYPE_INSTANCE_HOOK(
 
     auto* player = this->getLocalPlayer();
     if (player && this->isWorldActive()) {
+        try {
+            g_localPlayerUuid = static_cast<std::string>(player->getUuid());
+            static int localSkinDelay = 29;
+            if (++localSkinDelay >= 30) {
+                localSkinDelay = 0;
+                ExtractPlayerSkinHead(player, g_localPlayerUuid);
+            }
+        } catch (...) {}
         Vec3 pos;
         try {
             pos = player->getFeetPos();
@@ -4137,16 +4457,32 @@ LL_TYPE_INSTANCE_HOOK(
 
             // [跨维度传送] 若目标维度与当前维度不同，使用 Bedrock 规范指令 /execute in <dim> run tp @s 执行跨界传送
             if (targetDim != currentDim) {
+                // 立即丢弃当前正在进行的异界扫描与待写缓冲，彻底防止跨维度写入污染
+                AbortActiveScanAndPendingWrites();
+                g_currentScanX = -99999;
+                g_currentScanZ = -99999;
+                g_scanDimension = -999;
+
                 std::string dimName;
                 if (targetDim == 1) dimName = "nether";
                 else if (targetDim == 2) dimName = "the_end";
                 else dimName = "overworld";
 
                 float finalY = targetY;
-                // 若 Y 为未指定哨兵 (<-500 或 == 320)，赋予目标维度的安全默认高度
-                if (finalY < -500.0f || std::abs(finalY - 320.0f) < 0.1f) {
-                    if (targetDim == 1) finalY = 64.0f;       // 下界安全中层
-                    else if (targetDim == 2) finalY = 65.0f;  // 末地岛屿表面
+                bool needNetherCrossProbe = false;
+                if (targetDim == 1) {
+                    // 跨维度传送至下界：若 finalY 在基岩顶 (>=125) 或岩浆海 (<33) 或未指定 (<-500/==320)
+                    // 严禁直接传送进实心地狱岩中窒息！
+                    // 先传送到 Y=128 基岩顶层绝对安全暂存区触发下界区块加载，并启动下界两阶段探测
+                    if (finalY >= 125.0f || finalY < 33.0f || finalY < -500.0f || std::abs(finalY - 320.0f) < 0.1f) {
+                        finalY = 128.0f;
+                        needNetherCrossProbe = true;
+                    }
+                } else if (finalY < -500.0f || std::abs(finalY - 320.0f) < 0.1f) {
+                    int16_t cachedY = MapCacheManager::GetCachedSurfaceHeight((int)std::floor(targetX), (int)std::floor(targetZ), false);
+                    if (cachedY != MapCacheManager::HEIGHT_UNKNOWN && cachedY > -64 && cachedY < 319) {
+                        finalY = (float)cachedY + 1.0f;
+                    } else if (targetDim == 2) finalY = 65.0f;  // 末地岛屿表面
                     else finalY = 70.0f;                      // 主世界海平面附近
                 }
 
@@ -4155,21 +4491,62 @@ LL_TYPE_INSTANCE_HOOK(
                               dimName.c_str(), targetX, finalY, targetZ);
                 SendServerCommand(*player, coordBuf);
 
+                if (needNetherCrossProbe) {
+                    // 启动下界向下探测安全落脚点 (Phase 1)
+                    MapRenderState::probeMode = 1;
+                    MapRenderState::probeMinY = 2;
+                    MapRenderState::probeMaxY = 125;
+                    MapRenderState::probeRefY = 64;
+                    MapRenderState::probeIsNether = true;
+                    MapRenderState::probeOriginalX = g_playerX;
+                    MapRenderState::probeOriginalY = g_playerY;
+                    MapRenderState::probeOriginalZ = g_playerZ;
+                    MapRenderState::probeTargetX.store((int)std::floor(targetX));
+                    MapRenderState::probeTargetZ.store((int)std::floor(targetZ));
+                    MapRenderState::probeStartTime = std::chrono::steady_clock::now();
+                    MapRenderState::probeLastY = -32000;
+                    MapRenderState::probeLastX = 0;
+                    MapRenderState::probeLastZ = 0;
+                    MapRenderState::probeStableCount = 0;
+                    MapRenderState::pendingSurfaceProbe.store(true);
+                    MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Loading);
+                    MapRenderState::teleportStatusMsg = LanguageManager::GetText("TELEPORT_LOADING");
+                } else {
+                    MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Idle);
+                    MapRenderState::teleportStatusMsg.clear();
+                }
+
                 LogTeleport("tp cross-dimension from dim=" + std::to_string(currentDim) +
                             " to dim=" + std::to_string(targetDim) + " (" + dimName +
                             ") coords=(" + std::to_string((int)targetX) + "," +
                             std::to_string((int)finalY) + "," + std::to_string((int)targetZ) + ")");
 
-                MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Idle);
-                MapRenderState::teleportStatusMsg.clear();
                 MapRenderState::tpTargetDim = -1;
                 MapRenderState::triggerTeleport.store(false);
             } else {
                 MapRenderState::tpTargetDim = -1;
                 std::string detectMethod = "user-specified";
 
+                int dimId = MapRenderState::currentDimensionId;
                 // targetY < -500（哨兵）或 == 320（未加载默认值）→ 系统决定地表
                 bool needSurfaceDetect = (targetY < -500.0f) || (std::abs(targetY - 320.0f) < 0.1f);
+                if (dimId == 1) {
+                    // 下界环境防线：
+                    // 1. 若 targetY >= 125 (在顶部基岩层上或之上) 强制必须往下探测安全落脚点，绝不允许留在基岩层之上！
+                    // 2. 若 targetY < 33 (在底部岩浆海中或虚空) 强制探测安全落脚点
+                    if (targetY >= 125.0f || targetY < 33.0f) {
+                        needSurfaceDetect = true;
+                    } else {
+                        // 3. 即使指定了 Y，若目标区块已就绪且该点是实心地狱岩/岩浆（不安全），强制重探测，杜绝窒息
+                        BlockSource* chkRegion = this->getRegion();
+                        int bx = (int)std::floor(targetX);
+                        int by = (int)std::floor(targetY);
+                        int bz = (int)std::floor(targetZ);
+                        if (chkRegion && IsChunkReady(*chkRegion, bx, by, bz) && !IsTeleportSpotSafe(*chkRegion, bx, by, bz, 1)) {
+                            needSurfaceDetect = true;
+                        }
+                    }
+                }
 
             if (needSurfaceDetect) {
                 int blockX = (int)std::floor(targetX);
@@ -4179,7 +4556,6 @@ LL_TYPE_INSTANCE_HOOK(
                 // [维度感知] 确定传送模式
                 // 0=主世界地表, 1=下界/主世界洞穴, 2=末地开阔空岛
                 int teleportMode = 0;
-                int dimId = MapRenderState::currentDimensionId;
                 if (dimId == 1) {
                     teleportMode = 1;  // 下界: 洞穴模式传送
                 } else if (dimId == 2) {
@@ -4190,10 +4566,12 @@ LL_TYPE_INSTANCE_HOOK(
                 int refY = (int)g_playerY;  // 洞穴传送的参考Y (玩家当前高度)
                 if (dimId == 1) {
                     int16_t cachedNetherY = MapCacheManager::GetCachedSurfaceHeight(blockX, blockZ, true);
-                    if (cachedNetherY != MapCacheManager::HEIGHT_UNKNOWN && cachedNetherY > 0) {
+                    if (cachedNetherY != MapCacheManager::HEIGHT_UNKNOWN && cachedNetherY >= 33 && cachedNetherY <= 100) {
                         refY = (int)cachedNetherY + 1; // 已保存具体坐标点的位置: 优先在保存高度附近查找
+                    } else if (targetY >= 33.0f && targetY <= 100.0f) {
+                        refY = (int)targetY;
                     } else {
-                        refY = (g_playerY >= 33.0f && g_playerY <= 100.0f) ? (int)g_playerY : 64; // 未保存具体坐标点或未去过的区域: 默认参考高度64(或当前玩家有效洞穴高度)
+                        refY = (g_playerY >= 33.0f && g_playerY <= 100.0f) ? (int)g_playerY : 64; // 避开基岩顶层，默认参考高度64
                     }
                 } else if (MapRenderState::g_caveModeActive) {
                     int16_t cachedCaveY = MapCacheManager::GetCachedSurfaceHeight(blockX, blockZ, true);
@@ -4323,7 +4701,7 @@ LL_TYPE_INSTANCE_HOOK(
                         // [下界传送] 若区块已就绪且已加载
                         if (region && chunkReady) {
                             short safeY = SafeFindSafeSpawnY(*region, blockX, blockZ, 1);
-                            if (safeY > -64 && safeY < 319 && IsTeleportSpotSafe(*region, blockX, safeY, blockZ, 1)) {
+                            if (safeY >= 33 && safeY <= 100 && IsTeleportSpotSafe(*region, blockX, safeY, blockZ, 1)) {
                                 LogTeleport("tp nether-instant (" + std::to_string(blockX) + "," +
                                             std::to_string((int)safeY) + "," + std::to_string(blockZ) +
                                             ") [refY=" + std::to_string(refY) + "]");
@@ -4339,6 +4717,7 @@ LL_TYPE_INSTANCE_HOOK(
                                 short nearbyY = -32000;
                                 if ((FindNearestSafeSpawnNearY(*region, searchX, searchZ, nearbyY, refY, 16, tpMinY, tpMaxY, 1) ||
                                      FindNearestSafeSpawnNearY(*region, searchX, searchZ, nearbyY, refY, 32, tpMinY, tpMaxY, 1)) &&
+                                    nearbyY >= 33 && nearbyY <= 100 &&
                                     IsTeleportSpotSafe(*region, searchX, nearbyY, searchZ, 1)) {
                                     LogTeleport("tp nether-nearby (" + std::to_string(searchX) + "," +
                                                 std::to_string((int)nearbyY) + "," + std::to_string(searchZ) +
@@ -4349,36 +4728,13 @@ LL_TYPE_INSTANCE_HOOK(
                                     SendServerCommand(*player, coordBuf);
                                     MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Idle);
                                     MapRenderState::teleportStatusMsg.clear();
-                                } else if (cachedCaveY != MapCacheManager::HEIGHT_UNKNOWN && cachedCaveY > 0 && cachedCaveY < 127) {
-                                    // [解除误判驳回] 下界实时落脚点未就绪，但缓存中有下界Y记录 → 回退使用缓存高度直接传送
-                                    float finalY = (float)cachedCaveY + 1.0f;
-                                    LogTeleport("tp nether cached-fallback (" + std::to_string(blockX) + "," +
-                                                std::to_string((int)finalY) + "," + std::to_string(blockZ) +
-                                                ") dim=1 method=cache/direct-nether-fallback");
-                                    char coordBuf[128];
-                                    std::snprintf(coordBuf, sizeof(coordBuf), "/tp @s %.2f %.2f %.2f",
-                                                  (float)blockX + 0.5f, finalY, (float)blockZ + 0.5f);
-                                    SendServerCommand(*player, coordBuf);
-                                    MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Idle);
-                                    MapRenderState::teleportStatusMsg.clear();
                                 } else {
-                                    // 缓存无记录或未找到 → 转入两阶段探测
+                                    // 目标点及周围 32 格内暂无已验证的安全点 → 严禁盲目传送到未验证的缓存高度，转入两阶段探测！
                                     needProbe = true;
                                 }
                             }
-                        } else if (cachedCaveY != MapCacheManager::HEIGHT_UNKNOWN && cachedCaveY > 0 && cachedCaveY < 127) {
-                            // [解除强行区块就绪校验] 下界区块未就绪，但缓存中有下界Y高度记录 → 直接精准传送
-                            float finalY = (float)cachedCaveY + 1.0f;
-                            LogTeleport("tp nether cached (" + std::to_string(blockX) + "," +
-                                        std::to_string((int)finalY) + "," + std::to_string(blockZ) +
-                                        ") dim=1 method=cache/direct-nether");
-                            char coordBuf[128];
-                            std::snprintf(coordBuf, sizeof(coordBuf), "/tp @s %.2f %.2f %.2f",
-                                          (float)blockX + 0.5f, finalY, (float)blockZ + 0.5f);
-                            SendServerCommand(*player, coordBuf);
-                            MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Idle);
-                            MapRenderState::teleportStatusMsg.clear();
                         } else {
+                            // 下界区块未就绪：严禁直接传送到 cachedCaveY (可能卡在未加载实心地狱岩中窒息)！转入两阶段探测
                             needProbe = true;
                         }
                     } else {
@@ -4519,70 +4875,73 @@ LL_TYPE_INSTANCE_HOOK(
                             // [下界·Phase 1] 确认下界区块方块数据加载到达客户端后，寻找最佳开阔安全落脚点
                             // ==========================================
                             bool netherDataLoaded = false;
-                            std::string testBedrock;
-                            if (SafeGetBlockName(*region, probeX, 127, probeZ, testBedrock) && !testBedrock.empty() && !IsAirLikeName(testBedrock)) {
+                            std::string testBlock;
+                            // 检查下界底部 Y=0 基岩层是否已下发（保证全高 subchunk 已完整到达客户端）
+                            if (SafeGetBlockName(*region, probeX, 0, probeZ, testBlock) && 
+                                !testBlock.empty() && testBlock.find("bedrock") != std::string::npos) {
                                 netherDataLoaded = true;
-                            } else if (SafeGetBlockName(*region, probeX, 0, probeZ, testBedrock) && !testBedrock.empty() && !IsAirLikeName(testBedrock)) {
-                                netherDataLoaded = true;
+                            } else {
+                                // 检查 [33, 100] 洞穴区间内是否有方块已加载
+                                if (SafeGetBlockName(*region, probeX, 32, probeZ, testBlock) && !testBlock.empty()) {
+                                    netherDataLoaded = true;
+                                } else if (SafeGetBlockName(*region, probeX, 64, probeZ, testBlock) && !testBlock.empty()) {
+                                    netherDataLoaded = true;
+                                }
                             }
 
-                            if (netherDataLoaded) {
-                                int searchX = probeX;
-                                int searchZ = probeZ;
-                                short netherY = -32000;
-                                int prefY = (MapRenderState::probeRefY >= 33 && MapRenderState::probeRefY <= 100) ? MapRenderState::probeRefY : 64;
+                            int searchX = probeX;
+                            int searchZ = probeZ;
+                            short netherY = -32000;
+                            int prefY = (MapRenderState::probeRefY >= 33 && MapRenderState::probeRefY <= 100) ? MapRenderState::probeRefY : 64;
 
-                                // 优先搜索目标列及周围 r=16 内的最佳开阔安全点，若周围全是实心地狱岩或岩浆海则扩大至 r=32
-                                bool found = FindBestSafeSpawnNether(*region, searchX, searchZ, netherY, prefY, 16);
-                                if (!found) {
-                                    found = FindBestSafeSpawnNether(*region, searchX, searchZ, netherY, prefY, 32);
+                            // 优先搜索目标列及周围 r=16 内的最佳开阔安全点，若周围全是实心地狱岩或岩浆海则扩大至 r=32
+                            bool found = FindBestSafeSpawnNether(*region, searchX, searchZ, netherY, prefY, 16);
+                            if (!found) {
+                                found = FindBestSafeSpawnNether(*region, searchX, searchZ, netherY, prefY, 32);
+                            }
+
+                            if (found && netherY >= 33 && netherY <= 100 && IsTeleportSpotSafe(*region, searchX, netherY, searchZ, 1)) {
+                                // 连续 3 帧确认安全点坐标与高度稳定
+                                if (netherY == MapRenderState::probeLastY && searchX == MapRenderState::probeLastX && searchZ == MapRenderState::probeLastZ) {
+                                    MapRenderState::probeStableCount++;
+                                } else {
+                                    MapRenderState::probeLastY = netherY;
+                                    MapRenderState::probeLastX = searchX;
+                                    MapRenderState::probeLastZ = searchZ;
+                                    MapRenderState::probeStableCount = 1;
                                 }
 
-                                if (found && netherY > -64 && netherY < 125) {
-                                    // 连续 3 帧确认安全点坐标与高度稳定
-                                    if (netherY == MapRenderState::probeLastY && searchX == MapRenderState::probeLastX && searchZ == MapRenderState::probeLastZ) {
-                                        MapRenderState::probeStableCount++;
-                                    } else {
-                                        MapRenderState::probeLastY = netherY;
-                                        MapRenderState::probeLastX = searchX;
-                                        MapRenderState::probeLastZ = searchZ;
-                                        MapRenderState::probeStableCount = 1;
-                                    }
-
-                                    if (MapRenderState::probeStableCount >= MapRenderState::kProbeStableThreshold) {
-                                        float finalY = (float)netherY;
-                                        char coordBuf[128];
-                                        std::snprintf(coordBuf, sizeof(coordBuf), "/tp @s %.2f %.2f %.2f",
-                                                      (float)searchX + 0.5f, finalY, (float)searchZ + 0.5f);
-                                        SendServerCommand(*player, coordBuf);
-                                        LogTeleport("probe SUCCESS-nether (" + std::to_string(searchX) + "," +
-                                                    std::to_string((int)finalY) + "," + std::to_string(searchZ) +
-                                                    ") [prefY=" + std::to_string(prefY) + ", safe open cavern ground]");
-                                        MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Idle);
-                                        MapRenderState::teleportStatusMsg.clear();
-                                        probeDone = true;
-                                    }
-                                } else {
-                                    MapRenderState::probeStableCount = 0;
-                                    MapRenderState::probeLastY = -32000;
-                                    // 区块已加载，但半径 32 内全是岩浆海或全实心地狱岩无任何安全落脚点
-                                    // 超过 4 秒仍未找到时安全驳回
-                                    if (elapsedMs >= 4000) {
-                                        LogTeleport("probe REJECT-nether (" + std::to_string(probeX) + "," +
-                                                    std::to_string(probeZ) + ") [chunk loaded but no safe spawn within r=32, reject]");
-                                        char abortBuf[128];
-                                        std::snprintf(abortBuf, sizeof(abortBuf), "/tp @s %.2f %.2f %.2f",
-                                                      MapRenderState::probeOriginalX, MapRenderState::probeOriginalY, MapRenderState::probeOriginalZ);
-                                        SendServerCommand(*player, abortBuf);
-                                        MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Failed);
-                                        MapRenderState::teleportStatusMsg.clear();
-                                        MapRenderState::teleportFailReason = LanguageManager::GetText("TELEPORT_FAILED_MSG");
-                                        probeDone = true;
-                                    }
+                                if (MapRenderState::probeStableCount >= MapRenderState::kProbeStableThreshold) {
+                                    float finalY = (float)netherY;
+                                    char coordBuf[128];
+                                    std::snprintf(coordBuf, sizeof(coordBuf), "/tp @s %.2f %.2f %.2f",
+                                                  (float)searchX + 0.5f, finalY, (float)searchZ + 0.5f);
+                                    SendServerCommand(*player, coordBuf);
+                                    LogTeleport("probe SUCCESS-nether (" + std::to_string(searchX) + "," +
+                                                std::to_string((int)finalY) + "," + std::to_string(searchZ) +
+                                                ") [prefY=" + std::to_string(prefY) + ", safe open cavern ground]");
+                                    MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Idle);
+                                    MapRenderState::teleportStatusMsg.clear();
+                                    probeDone = true;
                                 }
                             } else {
                                 MapRenderState::probeStableCount = 0;
                                 MapRenderState::probeLastY = -32000;
+                                // 仅当区块数据确已加载完成，且超过 8 秒仍未找到安全落脚点时才驳回
+                                if (netherDataLoaded && elapsedMs >= 8000) {
+                                    LogTeleport("probe REJECT-nether (" + std::to_string(probeX) + "," +
+                                                std::to_string(probeZ) + ") [chunk loaded but no safe spawn within r=32, reject]");
+                                    char abortBuf[128];
+                                    float abortY = MapRenderState::probeOriginalY;
+                                    if (abortY >= 125.0f) abortY = 64.0f; // 避免回退到基岩顶层
+                                    std::snprintf(abortBuf, sizeof(abortBuf), "/tp @s %.2f %.2f %.2f",
+                                                  MapRenderState::probeOriginalX, abortY, MapRenderState::probeOriginalZ);
+                                    SendServerCommand(*player, abortBuf);
+                                    MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Failed);
+                                    MapRenderState::teleportStatusMsg.clear();
+                                    MapRenderState::teleportFailReason = LanguageManager::GetText("TELEPORT_FAILED_MSG");
+                                    probeDone = true;
+                                }
                             }
                         } else if (probeMode == 1) {
                             // [主世界洞穴·Phase 1] 稳定性检查 + 纵向安全落脚点搜索
@@ -4728,14 +5087,18 @@ LL_TYPE_INSTANCE_HOOK(
                 int timeoutMs = (MapRenderState::probeIsNether || MapRenderState::currentDimensionId == 1) ? 10000 : 8000;
                 if (elapsedMs >= timeoutMs) {
                     char abortBuf[128];
+                    float abortY = MapRenderState::probeOriginalY;
+                    if ((MapRenderState::probeIsNether || MapRenderState::currentDimensionId == 1) && abortY >= 125.0f) {
+                        abortY = 64.0f;
+                    }
                     std::snprintf(abortBuf, sizeof(abortBuf), "/tp @s %.2f %.2f %.2f",
                                   MapRenderState::probeOriginalX,
-                                  MapRenderState::probeOriginalY,
+                                  abortY,
                                   MapRenderState::probeOriginalZ);
                     SendServerCommand(*player, abortBuf);
                     LogTeleport("probe TIMEOUT abort→original (" +
                                 std::to_string((int)MapRenderState::probeOriginalX) + "," +
-                                std::to_string((int)MapRenderState::probeOriginalY) + "," +
+                                std::to_string((int)abortY) + "," +
                                 std::to_string((int)MapRenderState::probeOriginalZ) +
                                 ") [chunk not ready within " + std::to_string(timeoutMs / 1000) + "s]");
                     MapRenderState::teleportState.store((int)MapRenderState::TeleportState::Failed);
@@ -4760,11 +5123,14 @@ LL_TYPE_INSTANCE_HOOK(
         // (约 8-10 次堆分配) + 每帧 getBiome + biome.mHash->getString (2-3 次堆分配)。
         // 改为 30 帧 (0.5s) 节流：世界 ID 在游戏中几乎不变，生物群系名也只需半秒级刷新。
         // ==========================================
-        static int s_worldBiomeCheckCounter = 0;
-        if (++s_worldBiomeCheckCounter >= 30) {
+        int currentLiveDim = (int)player->getDimensionId();
+        bool dimChanged = (MapRenderState::currentDimensionId != -999 && currentLiveDim != MapRenderState::currentDimensionId);
+        static int s_worldBiomeCheckCounter = 30;
+        s_worldBiomeCheckCounter++;
+        if (dimChanged || s_worldBiomeCheckCounter >= 30) {
             s_worldBiomeCheckCounter = 0;
             try {
-                int dimId = (int)player->getDimensionId();
+                int dimId = currentLiveDim;
                 std::string rawLevelId = "UnknownWorld";
                 std::string seedStr = "0";
                 std::string spawnStr = "0_0";
@@ -4782,6 +5148,10 @@ LL_TYPE_INSTANCE_HOOK(
                 try {
                     BlockPos spawn = player->getLevel().getDefaultSpawn();
                     spawnStr = std::to_string(spawn.x) + "_" + std::to_string(spawn.z);
+                    MapRenderState::worldSpawnX = spawn.x;
+                    MapRenderState::worldSpawnY = spawn.y;
+                    MapRenderState::worldSpawnZ = spawn.z;
+                    MapRenderState::hasWorldSpawn = true;
                 } catch(...) {}
 
                 if (rawLevelId.empty() || rawLevelId == "UnknownWorld") {
@@ -4794,20 +5164,66 @@ LL_TYPE_INSTANCE_HOOK(
                     if (c == '\\' || c == '/' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') c = '_';
                 }
 
+                CapturedLevelSeed seedCapture = CaptureLevelSeedSnapshot(player->getLevel());
+                if (!seedCapture.seed.HasSeed() && seedStr != "0") {
+                    try {
+                        uint64_t s32 = std::stoull(seedStr);
+                        if (ChiyanMap::WorldGen::IsUsableCapturedBedrockSeed(s32)) {
+                            seedCapture.rawBits = s32;
+                            seedCapture.seed = ChiyanMap::WorldGen::SeedSnapshot::FromSeedBits(s32);
+                        }
+                    } catch(...) {}
+                }
+
                 if (MapRenderState::currentWorldId != finalWorldId || MapRenderState::currentDimensionId != dimId) {
+                    // 维度/世界切换：立即中止当前扫描并清除待写缓存，绝不允许旧维度残留数据写入新维度缓存
+                    AbortActiveScanAndPendingWrites();
+
                     MapRenderState::currentWorldId = finalWorldId;
                     MapRenderState::currentDimensionId = dimId;
+                    MapRenderState::bigMapViewDimensionId = -999;
+                    MapRenderState::ResetDimCameraStates();
 
                     MapCacheManager::SwitchWorld(finalWorldId, dimId);
                     WaypointManager::SwitchWorld(finalWorldId, dimId);
-
-                    std::memset(g_mapHeights, 0, sizeof(g_mapHeights));
-                    std::memset(g_mapColors, 0, sizeof(g_mapColors));
-                    std::memset(g_mapHeightsBack, 0, sizeof(g_mapHeightsBack));
-                    std::memset(g_mapColorsBack, 0, sizeof(g_mapColorsBack));
+                    DeathPointManager::SwitchWorld(finalWorldId);
+                    SeedMapManager::NotifyWorldChanged(finalWorldId, seedCapture.seed, seedCapture.rawBits, dimId);
 
                     MapRenderState::clearGPUCache.store(true);
-                    g_mapDataUpdated.store(true);
+
+                    int px = g_playerBlockX;
+                    int pz = g_playerBlockZ;
+                    bool isCave = (dimId == 1) || MapRenderState::g_caveModeActive;
+
+                    // [极速加载核心] 进世界/切维度第 0 帧：立即从缓存预填当前位置小地图与直接推送纹理，杜绝黑块！
+                    MapCacheManager::PrefillMapGrid(px, pz, g_mapColorsBack, g_mapHeightsBack, isCave, false, g_textureData);
+                    {
+                        std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                        std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                        std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                        g_lastRenderX = px;
+                        g_lastRenderZ = pz;
+                        g_textureCenterX = (float)px;
+                        g_textureCenterZ = (float)pz;
+                        g_textureReadyToUpload.store(true);
+                        g_mapDataUpdated.store(true);
+                    }
+
+                    g_currentScanX = px;
+                    g_currentScanZ = pz;
+                    g_scanPrevDimension = dimId;
+                    g_scanPrevCaveActive = isCave;
+                    g_scanDimension = dimId;
+                    g_isScanning = true;
+                    g_scanPhase = 0;
+                    g_scanRadius = 0;
+                    g_scanPerimeterIndex = 0;
+                } else {
+                    // 处于同一世界中，但若种子地图尚未有可用种子，且当前成功捕获到可用种子，实时刷新
+                    const auto smStatus = SeedMapManager::GetStatus();
+                    if (!smStatus.seedAvailable && seedCapture.seed.HasSeed()) {
+                        SeedMapManager::NotifyWorldChanged(finalWorldId, seedCapture.seed, seedCapture.rawBits, dimId);
+                    }
                 }
             } catch(...) {}
 
@@ -4830,6 +5246,34 @@ LL_TYPE_INSTANCE_HOOK(
                     }
                 }
             } catch (...) {}
+        }
+
+        static bool wasPlayerAlive = true;
+        static bool hasLastAlivePos = false;
+        static int lastAliveX = 0;
+        static int lastAliveY = 0;
+        static int lastAliveZ = 0;
+        static int lastAliveDimensionId = 0;
+
+        bool isPlayerAlive = true;
+        try {
+            if (player) {
+                isPlayerAlive = player->isAlive();
+            }
+        } catch (...) {
+            isPlayerAlive = true;
+        }
+
+        if (isPlayerAlive) {
+            wasPlayerAlive = true;
+            hasLastAlivePos = true;
+            lastAliveX = g_playerBlockX;
+            lastAliveY = (int)std::floor(g_playerY);
+            lastAliveZ = g_playerBlockZ;
+            lastAliveDimensionId = MapRenderState::currentDimensionId;
+        } else if (wasPlayerAlive && hasLastAlivePos && !MapRenderState::currentWorldId.empty()) {
+            DeathPointManager::AddDeathPoint(lastAliveX, lastAliveY, lastAliveZ, lastAliveDimensionId);
+            wasPlayerAlive = false;
         }
 
         static bool lastUIState = false;
@@ -4906,62 +5350,122 @@ LL_TYPE_INSTANCE_HOOK(
             }
         }
 
-        static int currentScanX  = -99999;
-        static int currentScanZ  = -99999;
-        static bool isScanning   = false;
-        static int  currentRow   = -MAP_DATA_RADIUS;
-        static int  currentCol   = -MAP_DATA_RADIUS;
-        static int  ticksSinceScan = 0;
-        // [新增] 本次扫描采集的生物群系条目，扫描完成后批量写入 MapCacheManager
-        // 声明在扫描状态变量处，以便在扫描启动时 clear()
-        static std::vector<MapCacheManager::BiomeEntry> biomeEntries;
-        // [洞穴检测冷却] 声明在扫描启动前，以便新扫描开始时重置为 0 (立即检测)
-        static int s_caveDetectCooldown = 0;
-
         int px = g_playerBlockX;
         int pz = g_playerBlockZ;
-        ticksSinceScan++;
+        g_ticksSinceScan++;
 
-        if (!isScanning && (std::abs(px - currentScanX) >= 8 || std::abs(pz - currentScanZ) >= 8 || ticksSinceScan > 50)) {
-            currentScanX  = px;
-            currentScanZ  = pz;
-            ticksSinceScan = 0;
+        if (!g_isScanning && (std::abs(px - g_currentScanX) >= 8 || std::abs(pz - g_currentScanZ) >= 8 || g_ticksSinceScan > 50)) {
+            int moveDistX = px - g_currentScanX;
+            int moveDistZ = pz - g_currentScanZ;
+            bool isCaveMode = (MapRenderState::currentDimensionId == 1) || MapRenderState::g_caveModeActive;
 
-            isScanning = true;
-            currentRow = -MAP_DATA_RADIUS;
-            currentCol = -MAP_DATA_RADIUS;
-            biomeEntries.clear();  // [新增] 新扫描周期开始，清空采集缓冲
-            // [防石头污染] 新扫描开始时强制立即运行洞穴检测，
-            // 避免在洞穴检测冷却期间地表扫描写入石头数据到缓存
-            s_caveDetectCooldown = 0;
-            // [防残留] 清零后台缓冲区, 确保洞穴→地表切换时不残留旧洞穴数据
-            std::memset(g_mapColorsBack, 0, sizeof(g_mapColorsBack));
-            std::memset(g_mapHeightsBack, 0, sizeof(g_mapHeightsBack));
+            if (std::abs(moveDistX) >= 64 || std::abs(moveDistZ) >= 64) {
+                // 远距离跳转/传送：重新整幅预填
+                g_currentScanX = px;
+                g_currentScanZ = pz;
+                MapCacheManager::PrefillMapGrid(px, pz, g_mapColorsBack, g_mapHeightsBack, isCaveMode, false, g_textureData);
+                {
+                    std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                    std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                    std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                    g_lastRenderX = px;
+                    g_lastRenderZ = pz;
+                    g_textureCenterX = (float)px;
+                    g_textureCenterZ = (float)pz;
+                    g_textureReadyToUpload.store(true);
+                    g_mapDataUpdated.store(true);
+                }
+            } else if (moveDistX != 0 || moveDistZ != 0) {
+                // 平移现有网格与GPU纹理，并用缓存填补边缘空缺 (onlyIfMissing = true)
+                ShiftScanGrid(g_mapColorsBack, moveDistX, moveDistZ);
+                ShiftScanGrid(g_mapHeightsBack, moveDistX, moveDistZ);
+                {
+                    std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                    ShiftTextureData(g_textureData, moveDistX, moveDistZ);
+                    g_textureCenterX += (float)moveDistX;
+                    g_textureCenterZ += (float)moveDistZ;
+                }
+                g_currentScanX += moveDistX;
+                g_currentScanZ += moveDistZ;
+                MapCacheManager::PrefillMapGrid(g_currentScanX, g_currentScanZ, g_mapColorsBack, g_mapHeightsBack, isCaveMode, true, g_textureData);
+                {
+                    std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                    std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                    std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                    g_lastRenderX = g_currentScanX;
+                    g_lastRenderZ = g_currentScanZ;
+                    g_textureReadyToUpload.store(true);
+                    g_mapDataUpdated.store(true);
+                }
+            }
+
+            g_ticksSinceScan = 0;
+            g_isScanning = true;
+            g_scanDimension = MapRenderState::currentDimensionId;
+            g_scanPhase = 0;
+            g_scanRadius = 0;
+            g_scanPerimeterIndex = 0;
+            g_scanBiomeEntries.clear();
+            g_caveDetectCooldown = 0;
         }
 
         // [跑图跟随] 扫描进行中玩家继续移动时, 平移扫描窗口跟随玩家 (详见 ShiftScanGrid 注释)。
         // 使扫描中心始终贴近玩家, 避免小地图纹理中心大幅滞后导致 UV 越界采样条纹。
-        if (isScanning && (std::abs(px - currentScanX) >= 16 || std::abs(pz - currentScanZ) >= 16)) {
-            int shiftX = px - currentScanX;
-            int shiftZ = pz - currentScanZ;
-            if (std::abs(shiftX) >= MAP_DATA_SIZE || std::abs(shiftZ) >= MAP_DATA_SIZE) {
-                // 异常跳转 (平移量超过缓冲区): 放弃平移, 整幅重扫
-                currentScanX = px;
-                currentScanZ = pz;
-                currentRow = -MAP_DATA_RADIUS;
-                currentCol = -MAP_DATA_RADIUS;
-                std::memset(g_mapColorsBack, 0, sizeof(g_mapColorsBack));
-                std::memset(g_mapHeightsBack, 0, sizeof(g_mapHeightsBack));
+        if (g_isScanning && (std::abs(px - g_currentScanX) >= 16 || std::abs(pz - g_currentScanZ) >= 16)) {
+            int shiftX = px - g_currentScanX;
+            int shiftZ = pz - g_currentScanZ;
+            bool isCaveMode = (MapRenderState::currentDimensionId == 1) || MapRenderState::g_caveModeActive;
+
+            if (std::abs(shiftX) >= 64 || std::abs(shiftZ) >= 64) {
+                // 异常跳转/传送 (平移量超过缓冲区): 重新整幅预填
+                g_currentScanX = px;
+                g_currentScanZ = pz;
+                MapCacheManager::PrefillMapGrid(px, pz, g_mapColorsBack, g_mapHeightsBack, isCaveMode, false, g_textureData);
+                {
+                    std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                    std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                    std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                    g_lastRenderX = px;
+                    g_lastRenderZ = pz;
+                    g_textureCenterX = (float)px;
+                    g_textureCenterZ = (float)pz;
+                    g_textureReadyToUpload.store(true);
+                    g_mapDataUpdated.store(true);
+                }
+                g_scanPhase = 0;
+                g_scanRadius = 0;
+                g_scanPerimeterIndex = 0;
             } else {
-                // 后台缓冲仅本 tick 线程读写 (缓存写入走独立拷贝 g_cacheWriteColors), 无需加锁
+                // 平移后台缓冲与GPU纹理
                 ShiftScanGrid(g_mapColorsBack, shiftX, shiftZ);
                 ShiftScanGrid(g_mapHeightsBack, shiftX, shiftZ);
-                currentScanX += shiftX;
-                currentScanZ += shiftZ;
-                // 游标换算到新中心坐标系并夹取到有效范围;
-                // 换算后可能落在少量已扫描列上, 重扫无害 (数据以最新扫描为准)
-                currentRow = std::clamp(currentRow - shiftX, -MAP_DATA_RADIUS, MAP_DATA_RADIUS);
-                currentCol = std::clamp(currentCol - shiftZ, -MAP_DATA_RADIUS, MAP_DATA_RADIUS);
+                {
+                    std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                    ShiftTextureData(g_textureData, shiftX, shiftZ);
+                    g_textureCenterX += (float)shiftX;
+                    g_textureCenterZ += (float)shiftZ;
+                }
+                g_currentScanX += shiftX;
+                g_currentScanZ += shiftZ;
+
+                // [防黑条核心] 立即从缓存填补平移露出的边缘条带 (onlyIfMissing = true) 并写入纹理
+                MapCacheManager::PrefillMapGrid(g_currentScanX, g_currentScanZ, g_mapColorsBack, g_mapHeightsBack, isCaveMode, true, g_textureData);
+
+                // 同步前台缓冲，使小地图纹理中心紧密贴合玩家，彻底杜绝跑图边缘 UV 越界条纹
+                {
+                    std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                    std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                    std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                    g_lastRenderX = g_currentScanX;
+                    g_lastRenderZ = g_currentScanZ;
+                    g_textureReadyToUpload.store(true);
+                    g_mapDataUpdated.store(true);
+                }
+
+                // 优先以玩家新位置为中心重启 Phase 0 核心视野同心环扫描
+                g_scanPhase = 0;
+                g_scanRadius = 0;
+                g_scanPerimeterIndex = 0;
             }
         }
 
@@ -4974,11 +5478,11 @@ LL_TYPE_INSTANCE_HOOK(
         if (MapRenderState::currentDimensionId == 1) {
             MapRenderState::g_caveModeActive = true;
             MapRenderState::g_caveStartY = 120;  // 下界天花板以下, 避开基岩层
-        } else if (s_caveDetectCooldown > 0) {
-            s_caveDetectCooldown--;
+        } else if (g_caveDetectCooldown > 0) {
+            g_caveDetectCooldown--;
         }
 
-        if (effectiveCaveType != 0 && MapRenderState::currentDimensionId != 1 && s_caveDetectCooldown == 0) {
+        if (effectiveCaveType != 0 && MapRenderState::currentDimensionId != 1 && g_caveDetectCooldown == 0) {
             try {
                 if (MapRenderState::g_caveTopYAuto) {
                     // Auto 模式: 自动检测洞穴
@@ -4988,7 +5492,7 @@ LL_TYPE_INSTANCE_HOOK(
                         bool inCave = DetectCaveStart(*regionPtr, px, (int)g_playerY, pz, caveStartY);
                         // [防残留] 洞穴→地表切换时强制触发重扫, 清除缓存中的旧洞穴数据
                         if (MapRenderState::g_caveModeActive && !inCave) {
-                            ticksSinceScan = 101;
+                            g_ticksSinceScan = 101;
                         }
                         MapRenderState::g_caveModeActive = inCave;
                         if (inCave) {
@@ -5003,7 +5507,7 @@ LL_TYPE_INSTANCE_HOOK(
             } catch (...) {
                 MapRenderState::g_caveModeActive = false;
             }
-            s_caveDetectCooldown = 5;  // 每 5 帧检测一次 (约 0.25 秒)
+            g_caveDetectCooldown = 5;  // 每 5 帧检测一次 (约 0.25 秒)
         } else if (effectiveCaveType == 0 && MapRenderState::currentDimensionId != 1) {
             // Off 模式 (仅主世界): 不启用洞穴渲染
             MapRenderState::g_caveModeActive = false;
@@ -5011,39 +5515,28 @@ LL_TYPE_INSTANCE_HOOK(
             // 原因: SafeGetSurfaceY 在地下时可能返回洞穴天花板 Y (区块部分加载),
             //       导致地表扫描读取石头方块, 扫描完成后 UpdateFromScan 永久写入缓存 → 灰石污染
             // 修复: 检测到地下时中止地表扫描, 保留缓存中的纯净地表数据
-            if (s_caveDetectCooldown == 0) {
+            if (g_caveDetectCooldown == 0) {
                 try {
                     BlockSource* regionPtr = this->getRegion();
                     if (regionPtr) {
                         int detectY = 0;
                         bool inCave = DetectCaveStart(*regionPtr, px, (int)g_playerY, pz, detectY);
-                        if (inCave && isScanning) {
+                        if (inCave && g_isScanning) {
                             // 玩家在地下但洞穴模式关闭: 中止地表扫描, 防止读取洞穴天花板石头
-                            isScanning = false;
-                            currentRow = -MAP_DATA_RADIUS;
-                            currentCol = -MAP_DATA_RADIUS;
-                            ticksSinceScan = 60;  // ~3秒后重试, 等玩家可能离开洞穴
+                            AbortActiveScanAndPendingWrites();
+                            g_ticksSinceScan = 60;  // ~3秒后重试, 等玩家可能离开洞穴
                         }
                     }
                 } catch (...) {}
-                s_caveDetectCooldown = 5;
+                g_caveDetectCooldown = 5;
             }
         }
 
-        // [维度切换] 维度变化时中止当前扫描, 避免跨维度数据混合
-        static int s_prevDimension = 0;
-        static bool s_prevCaveActive = false;
-        if (s_prevDimension != MapRenderState::currentDimensionId) {
-            s_prevDimension = MapRenderState::currentDimensionId;
-            s_prevCaveActive = MapRenderState::g_caveModeActive;  // 同步, 避免下帧再次触发模式切换中止
-            if (isScanning) {
-                isScanning = false;
-                currentRow = -MAP_DATA_RADIUS;
-                currentCol = -MAP_DATA_RADIUS;
-                std::memset(g_mapColorsBack, 0, sizeof(g_mapColorsBack));
-                std::memset(g_mapHeightsBack, 0, sizeof(g_mapHeightsBack));
-                ticksSinceScan = 101;  // 强制下帧启动新扫描
-            }
+        // [维度切换] 维度变化时立即彻底中止当前扫描与待写缓冲, 避免跨维度数据混合
+        if (g_scanPrevDimension != MapRenderState::currentDimensionId || (g_isScanning && g_scanDimension != MapRenderState::currentDimensionId)) {
+            g_scanPrevDimension = MapRenderState::currentDimensionId;
+            g_scanPrevCaveActive = MapRenderState::g_caveModeActive;  // 同步, 避免下帧再次触发模式切换中止
+            AbortActiveScanAndPendingWrites();
         }
 
         // [防地表污染核心修复] 洞穴模式切换时, 立即中止当前进行中的扫描
@@ -5051,22 +5544,35 @@ LL_TYPE_INSTANCE_HOOK(
         //   已扫部分是旧模式数据(如洞穴灰石 alpha=1), 后半段是新模式数据,
         //   完成后整份混合数据被 UpdateFromScan 写入缓存 → 永久灰黑块污染。
         // 修复: 检测到 g_caveModeActive 翻转时, 丢弃当前半成品扫描, 下帧重新开始纯模式扫描。
-        if (s_prevCaveActive != MapRenderState::g_caveModeActive) {
-            s_prevCaveActive = MapRenderState::g_caveModeActive;
-            isScanning = false;
-            currentRow = -MAP_DATA_RADIUS;
-            currentCol = -MAP_DATA_RADIUS;
-            std::memset(g_mapColorsBack, 0, sizeof(g_mapColorsBack));
-            std::memset(g_mapHeightsBack, 0, sizeof(g_mapHeightsBack));
-            ticksSinceScan = 101;  // 强制下帧立即启动新模式扫描
+        if (g_scanPrevCaveActive != MapRenderState::g_caveModeActive) {
+            g_scanPrevCaveActive = MapRenderState::g_caveModeActive;
+            AbortActiveScanAndPendingWrites();
 
-            // 注意：不要清空前台缓冲 g_mapColors！
-            // 保留当前前台地图画面直至新模式完整扫描完成后由 memcpy 原子替换，彻底杜绝切换瞬间的黑屏/黑块！
+            // [洞穴/地表极速平滑切换] 从对应缓存预填并立即更新前台与纹理，彻底杜绝切换瞬间的黑块与延迟
+            bool newIsCave = MapRenderState::g_caveModeActive;
+            MapCacheManager::PrefillMapGrid(px, pz, g_mapColorsBack, g_mapHeightsBack, newIsCave, false, g_textureData);
+            {
+                std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                g_lastRenderX = px;
+                g_lastRenderZ = pz;
+                g_textureCenterX = (float)px;
+                g_textureCenterZ = (float)pz;
+                g_textureReadyToUpload.store(true);
+                g_mapDataUpdated.store(true);
+            }
+            g_currentScanX = px;
+            g_currentScanZ = pz;
+            g_isScanning = true;
+            g_scanPhase = 0;
+            g_scanRadius = 0;
+            g_scanPerimeterIndex = 0;
         }
 
         // [洞穴扫描] 玩家在地下且洞穴模式启用时, 执行洞穴列扫描代替地表扫描
         // 对应 Xaero's MapWriter.writeChunk: 从 caveStart 向下扫描 caveDepth 格
-        if (isScanning && MapRenderState::g_caveModeActive && (effectiveCaveType != 0 || MapRenderState::currentDimensionId == 1)) {
+        if (g_isScanning && MapRenderState::g_caveModeActive && (effectiveCaveType != 0 || MapRenderState::currentDimensionId == 1)) {
             try {
                 BlockSource* regionPtr = this->getRegion();
                 if (regionPtr) {
@@ -5099,14 +5605,21 @@ LL_TYPE_INSTANCE_HOOK(
                         currentCaveScanDepth = caveDepth;
                     }
 
-                    while (currentRow <= MAP_DATA_RADIUS && !timeBudgetExceeded) {
-                        int dx = currentRow;
-                        int arrX = dx + MAP_DATA_RADIUS;
+                    int minR = (g_scanPhase == 0) ? 0 : (SCAN_INNER_RADIUS + 1);
+                    int maxR = (g_scanPhase == 0) ? SCAN_INNER_RADIUS : MAP_DATA_RADIUS;
+                    if (g_scanRadius < minR) g_scanRadius = minR;
 
-                        while (currentCol <= MAP_DATA_RADIUS) {
-                            int dz = currentCol;
-                            int targetX = currentScanX + dx;
-                            int targetZ = currentScanZ + dz;
+                    while (g_scanRadius <= maxR && !timeBudgetExceeded) {
+                        int r = g_scanRadius;
+                        int perimeter = (r == 0) ? 1 : (8 * r);
+
+                        while (g_scanPerimeterIndex < perimeter) {
+                            int dx = 0, dz = 0;
+                            GetRingCoords(r, g_scanPerimeterIndex, dx, dz);
+
+                            int targetX = g_currentScanX + dx;
+                            int targetZ = g_currentScanZ + dz;
+                            int arrX    = dx + MAP_DATA_RADIUS;
                             int arrZ    = dz + MAP_DATA_RADIUS;
 
                             int startY = currentCaveTopY;
@@ -5147,14 +5660,16 @@ LL_TYPE_INSTANCE_HOOK(
                                     }
                                 }
                             } else {
-                                // 列内无方块 = 空气/未探索 = 透明 (显示为黑色背景)
-                                g_mapColorsBack[arrX][arrZ] = mce::Color(0.0f, 0.0f, 0.0f, 0.0f);
-                                g_mapHeightsBack[arrX][arrZ] = 0.0f;
+                                // 关键防黑块策略：若已存在有效像素（来自缓存预填或上一轮扫描），绝不覆盖为纯黑！
+                                if (g_mapColorsBack[arrX][arrZ].a <= 0.01f) {
+                                    g_mapColorsBack[arrX][arrZ] = mce::Color(0.0f, 0.0f, 0.0f, 0.0f);
+                                    g_mapHeightsBack[arrX][arrZ] = 0.0f;
+                                }
                             }
 
-                            currentCol++;
+                            g_scanPerimeterIndex++;
 
-                            if ((currentCol & 31) == 0) {
+                            if ((g_scanPerimeterIndex & 31) == 0) {
                                 auto now = std::chrono::high_resolution_clock::now();
                                 if (std::chrono::duration_cast<std::chrono::microseconds>(now - scanStartTime).count() > 500) {
                                     timeBudgetExceeded = true;
@@ -5165,30 +5680,65 @@ LL_TYPE_INSTANCE_HOOK(
 
                         if (timeBudgetExceeded) break;
 
-                        if (currentCol > MAP_DATA_RADIUS) {
-                            currentCol = -MAP_DATA_RADIUS;
-                            currentRow++;
+                        if (g_scanPerimeterIndex >= perimeter) {
+                            g_scanPerimeterIndex = 0;
+                            g_scanRadius++;
                         }
                     }
 
-                    if (currentRow > MAP_DATA_RADIUS) {
-                        isScanning = false;
-                        {
-                            std::lock_guard<std::mutex> lock(g_mapDataMutex);
-                            std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
-                            std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
-                            g_lastRenderX = currentScanX;
-                            g_lastRenderZ = currentScanZ;
-                            g_mapDataUpdated.store(true);
-                        }
+                    // 增量周期性提交 (每 80ms)，实现每秒 12 次高频平滑渲染，杜绝任何可见延迟
+                    static auto s_lastCaveCommit = std::chrono::steady_clock::now();
+                    auto nowCave = std::chrono::steady_clock::now();
+                    if (std::chrono::duration_cast<std::chrono::milliseconds>(nowCave - s_lastCaveCommit).count() >= 80) {
+                        s_lastCaveCommit = nowCave;
+                        std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                        std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                        std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                        g_lastRenderX = g_currentScanX;
+                        g_lastRenderZ = g_currentScanZ;
+                        g_mapDataUpdated.store(true);
+                    }
 
-                        // [持久化] 异步写入缓存 (含下界/洞穴数据)
-                        // [性能] 使用持久化 worker 线程，避免每次扫描完成时创建线程 + 5MB 堆分配
-                        SubmitCacheWrite(currentScanX, currentScanZ, MapRenderState::currentDimensionId, true, biomeEntries);
+                    if (g_scanRadius > maxR) {
+                        if (g_scanPhase == 0) {
+                            // Phase 0 核心视野扫描完成：立即提交前台，切换至 Phase 1 外围扫描
+                            {
+                                std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                                std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                                std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                                g_lastRenderX = g_currentScanX;
+                                g_lastRenderZ = g_currentScanZ;
+                                g_mapDataUpdated.store(true);
+                            }
+                            g_scanPhase = 1;
+                            g_scanRadius = SCAN_INNER_RADIUS + 1;
+                            g_scanPerimeterIndex = 0;
+                        } else {
+                            // Phase 1 全图扫描完成
+                            g_isScanning = false;
+                            g_scanPhase = 0;
+                            g_scanRadius = 0;
+                            g_scanPerimeterIndex = 0;
+                            {
+                                std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                                std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                                std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                                g_lastRenderX = g_currentScanX;
+                                g_lastRenderZ = g_currentScanZ;
+                                g_mapDataUpdated.store(true);
+                            }
+
+                            // [持久化] 异步写入缓存 (含下界/洞穴数据)
+                            // [维度安全核验] 扫描完成提交前，严格确认维度未发生改变，杜绝跨维度提交
+                            if (g_scanDimension == MapRenderState::currentDimensionId &&
+                                g_scanDimension == MapCacheManager::GetLoadedDimensionId()) {
+                                SubmitCacheWrite(g_currentScanX, g_currentScanZ, g_scanDimension, true, g_scanBiomeEntries);
+                            }
+                        }
                     }
                 }
             } catch (...) {}
-        } else if (isScanning && !MapRenderState::g_caveModeActive) {
+        } else if (g_isScanning && !MapRenderState::g_caveModeActive) {
         // ==================== 地表扫描 (原有逻辑) ====================
         // 玩家不在洞穴时执行正常地表扫描
         try {
@@ -5210,31 +5760,39 @@ LL_TYPE_INSTANCE_HOOK(
                     auto scanStartTime = std::chrono::high_resolution_clock::now();
                     bool timeBudgetExceeded = false;
 
-                    while (currentRow <= MAP_DATA_RADIUS && !timeBudgetExceeded) {
-                        int dx = currentRow;
-                        int arrX = dx + MAP_DATA_RADIUS;
+                    int minR = (g_scanPhase == 0) ? 0 : (SCAN_INNER_RADIUS + 1);
+                    int maxR = (g_scanPhase == 0) ? SCAN_INNER_RADIUS : MAP_DATA_RADIUS;
+                    if (g_scanRadius < minR) g_scanRadius = minR;
 
-                        while (currentCol <= MAP_DATA_RADIUS) {
-                            int dz = currentCol;
-                            int targetX = currentScanX + dx;
-                            int targetZ = currentScanZ + dz;
+                    while (g_scanRadius <= maxR && !timeBudgetExceeded) {
+                        int r = g_scanRadius;
+                        int perimeter = (r == 0) ? 1 : (8 * r);
+
+                        while (g_scanPerimeterIndex < perimeter) {
+                            int dx = 0, dz = 0;
+                            GetRingCoords(r, g_scanPerimeterIndex, dx, dz);
+
+                            int targetX = g_currentScanX + dx;
+                            int targetZ = g_currentScanZ + dz;
+                            int arrX    = dx + MAP_DATA_RADIUS;
                             int arrZ    = dz + MAP_DATA_RADIUS;
 
                             // [安全] 使用 SafeGetSurfaceY (SEH 包装)，防止部分加载区块 AV 崩溃
                             short topY = SafeGetSurfaceY(region, targetX, targetZ);
-                            g_mapHeightsBack[arrX][arrZ] = (float)topY;
 
-                            // [防洞穴顶石] 跳过 Y 值偏离玩家过远的列
-                            if (topY > -64 && std::abs((int)topY - (int)g_playerY) <= 100) {
+                            // [防黑块核心] 只有在合法世界高度区间才更新高度与方块采样；区块未就绪时绝不置零或损坏已有地形
+                            if (topY > -64 && topY < 320) {
+                                g_mapHeightsBack[arrX][arrZ] = (float)topY;
                                 Block const& block = region.getBlock(BlockPos(targetX, topY - 1, targetZ));
-                                std::string blockName = block.getTypeName();
+                                Block const* currentBlockPtr = &block;
+                                std::string blockName = currentBlockPtr->getTypeName();
 
                                 // [屏障与隐形技术方块向下穿透] 屏障(barrier)等在展台或地图上应完全透明，自动透出底下的真实地表方块
                                 while (topY > -64 && IsInvisibleOrTechnicalOverlay(blockName)) {
                                     topY--;
                                     try {
-                                        Block const& nextBlock = region.getBlock(BlockPos(targetX, topY - 1, targetZ));
-                                        blockName = nextBlock.getTypeName();
+                                        currentBlockPtr = &region.getBlock(BlockPos(targetX, topY - 1, targetZ));
+                                        blockName = currentBlockPtr->getTypeName();
                                     } catch (...) {
                                         break;
                                     }
@@ -5254,6 +5812,9 @@ LL_TYPE_INSTANCE_HOOK(
                                             topY = cachedY;
                                             g_mapHeightsBack[arrX][arrZ] = (float)topY;
                                             blockName = surfName;
+                                            try {
+                                                currentBlockPtr = &region.getBlock(BlockPos(targetX, cachedY - 1, targetZ));
+                                            } catch (...) {}
                                         }
                                     }
                                 }
@@ -5271,9 +5832,18 @@ LL_TYPE_INSTANCE_HOOK(
                                         blockName = "";
                                     } else {
                                         blockName = aboveName;
+                                        currentBlockPtr = &blockAbove;
                                     }
 
                                     if (!blockName.empty()) {
+                                        // [原木横截面 vs 树皮侧面判定]
+                                        // 若方块为原木/菌柄且处于水平放置状态 (X或Z轴)，从上方俯视显露的是树皮侧面而非年轮横截面，
+                                        // 将 _log 映射为 _wood (或 _stem 映射为 _hyphae)，使地图渲染准确还原真实深色树皮外观
+                                        if (currentBlockPtr && IsPillarLogOrStem(blockName)) {
+                                            if (IsBlockPillarHorizontal(*currentBlockPtr)) {
+                                                blockName = GetHorizontalWoodName(blockName);
+                                            }
+                                        }
                                         int cellX = targetX >> 2;
                                         int cellZ = targetZ >> 2;
                                         if (cellX != s_biomeCellX || cellZ != s_biomeCellZ) {
@@ -5286,7 +5856,7 @@ LL_TYPE_INSTANCE_HOOK(
                                                     s_biomeNameHash = Fnv1aHash(s_biomeName);
                                                     getBiomeTints(s_biomeName, s_cachedGrass, s_cachedFoliage, s_cachedWater);
                                                 }
-                                                biomeEntries.push_back({cellX, cellZ, newBiomeName});
+                                                g_scanBiomeEntries.push_back({cellX, cellZ, newBiomeName});
                                             } catch (...) {
                                                 if (!s_biomeName.empty()) { s_biomeName = ""; s_biomeNameHash = 0; }
                                             }
@@ -5334,8 +5904,12 @@ LL_TYPE_INSTANCE_HOOK(
                                     g_mapHeightsBack[arrX][arrZ] = (float)seaFloor;
                                     try {
                                         Block const& seaFloorBlock = region.getBlock(BlockPos(targetX, seaFloor, targetZ));
+                                        std::string sfName = seaFloorBlock.getTypeName();
+                                        if (IsPillarLogOrStem(sfName) && IsBlockPillarHorizontal(seaFloorBlock)) {
+                                            sfName = GetHorizontalWoodName(sfName);
+                                        }
                                         mce::Color seaFloorColor = getBlockColor(
-                                            seaFloorBlock.getTypeName(),
+                                            sfName,
                                             s_cachedGrass, s_cachedFoliage, s_cachedWater
                                         );
                                         g_mapColorsBack[arrX][arrZ] = BlendWaterOverFloor(seaFloorColor, s_cachedWater);
@@ -5346,12 +5920,13 @@ LL_TYPE_INSTANCE_HOOK(
                                     }
                                 }
                             } else {
-                                g_mapColorsBack[arrX][arrZ] = mce::Color(0.0f, 0.0f, 0.0f, 0.0f);
+                                // topY <= -64 或 -32000 (区块未就绪/加载中):
+                                // 关键防黑块策略：绝不抹杀已有的有效像素！保留预填充或上一轮扫描的地表数据！
                             }
 
-                            currentCol++;
+                            g_scanPerimeterIndex++;
 
-                            if ((currentCol & 31) == 0) {
+                            if ((g_scanPerimeterIndex & 31) == 0) {
                                 auto now = std::chrono::high_resolution_clock::now();
                                 if (std::chrono::duration_cast<std::chrono::microseconds>(now - scanStartTime).count() > 500) {
                                     timeBudgetExceeded = true;
@@ -5362,45 +5937,81 @@ LL_TYPE_INSTANCE_HOOK(
 
                         if (timeBudgetExceeded) break;
 
-                        if (currentCol > MAP_DATA_RADIUS) {
-                            currentCol = -MAP_DATA_RADIUS;
-                            currentRow++;
+                        if (g_scanPerimeterIndex >= perimeter) {
+                            g_scanPerimeterIndex = 0;
+                            g_scanRadius++;
                         }
                     }
 
-                    if (currentRow > MAP_DATA_RADIUS) {
-                        isScanning = false;
+                    // 增量周期性提交 (每 80ms)，实现每秒 12 次高频平滑渲染，杜绝任何可见延迟
+                    static auto s_lastSurfaceCommit = std::chrono::steady_clock::now();
+                    auto nowSurface = std::chrono::steady_clock::now();
+                    if (std::chrono::duration_cast<std::chrono::milliseconds>(nowSurface - s_lastSurfaceCommit).count() >= 80) {
+                        s_lastSurfaceCommit = nowSurface;
+                        std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                        std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                        std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                        g_lastRenderX = g_currentScanX;
+                        g_lastRenderZ = g_currentScanZ;
+                        g_mapDataUpdated.store(true);
+                    }
 
-                        // [防污染最终防线] 扫描完成时再次检测玩家是否在地下
-                        // 若在地下, 跳过本次扫描数据的提交 (g_mapColors 和缓存), 保留之前的地表数据
-                        // 原因: 即使 Off 模式有中途中止检测 (每10帧), 扫描仍可能在检测冷却期内完成,
-                        //       将洞穴天花板石头数据写入缓存造成永久污染
-                        bool playerUnderground = false;
-                        if (MapRenderState::currentDimensionId != 1) {
-                            try {
-                                int detectY = 0;
-                                playerUnderground = DetectCaveStart(region, px, (int)g_playerY, pz, detectY);
-                            } catch (...) {}
-                        }
-
-                        if (!playerUnderground) {
+                    if (g_scanRadius > maxR) {
+                        if (g_scanPhase == 0) {
+                            // Phase 0 核心视野扫描完成：立即原子提交前台，切换至 Phase 1 外围扫描
                             {
                                 std::lock_guard<std::mutex> lock(g_mapDataMutex);
                                 std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
                                 std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
-                                g_lastRenderX = currentScanX;
-                                g_lastRenderZ = currentScanZ;
+                                g_lastRenderX = g_currentScanX;
+                                g_lastRenderZ = g_currentScanZ;
                                 g_mapDataUpdated.store(true);
                             }
-
-                            // [性能] 使用持久化 worker 线程，避免每次扫描完成时创建线程 + 5MB 堆分配
-                            SubmitCacheWrite(currentScanX, currentScanZ, MapRenderState::currentDimensionId, false, biomeEntries);
+                            g_scanPhase = 1;
+                            g_scanRadius = SCAN_INNER_RADIUS + 1;
+                            g_scanPerimeterIndex = 0;
                         } else {
-                            // 玩家在地下: 丢弃本次地表扫描数据, 防止洞穴天花板石头污染地表缓存;
-                            // 同时若洞穴模式开启，立即激活洞穴模式并强制下帧启动洞穴扫描
-                            if (effectiveCaveType != 0) {
-                                MapRenderState::g_caveModeActive = true;
-                                ticksSinceScan = 101;
+                            // Phase 1 全图扫描完成
+                            g_isScanning = false;
+                            g_scanPhase = 0;
+                            g_scanRadius = 0;
+                            g_scanPerimeterIndex = 0;
+
+                            // [防污染最终防线] 扫描完成时再次检测玩家是否在地下
+                            // 若在地下, 跳过本次扫描数据的提交 (g_mapColors 和缓存), 保留之前的地表数据
+                            // 原因: 即使 Off 模式有中途中止检测 (每10帧), 扫描仍可能在检测冷却期内完成,
+                            //       将洞穴天花板石头数据写入缓存造成永久污染
+                            bool playerUnderground = false;
+                            if (MapRenderState::currentDimensionId != 1) {
+                                try {
+                                    int detectY = 0;
+                                    playerUnderground = DetectCaveStart(region, px, (int)g_playerY, pz, detectY);
+                                } catch (...) {}
+                            }
+
+                            if (!playerUnderground) {
+                                // [跨维度安全检查] 必须确保扫描开始时的维度与当前维度以及缓存加载的维度完全一致
+                                if (g_scanDimension == MapRenderState::currentDimensionId &&
+                                    g_scanDimension == MapCacheManager::GetLoadedDimensionId()) {
+                                    {
+                                        std::lock_guard<std::mutex> lock(g_mapDataMutex);
+                                        std::memcpy(g_mapHeights, g_mapHeightsBack, sizeof(g_mapHeights));
+                                        std::memcpy(g_mapColors, g_mapColorsBack, sizeof(g_mapColors));
+                                        g_lastRenderX = g_currentScanX;
+                                        g_lastRenderZ = g_currentScanZ;
+                                        g_mapDataUpdated.store(true);
+                                    }
+
+                                    // [性能] 使用持久化 worker 线程，避免每次扫描完成时创建线程 + 5MB 堆分配
+                                    SubmitCacheWrite(g_currentScanX, g_currentScanZ, g_scanDimension, false, g_scanBiomeEntries);
+                                }
+                            } else {
+                                // 玩家在地下: 丢弃本次地表扫描数据, 防止洞穴天花板石头污染地表缓存;
+                                // 同时若洞穴模式开启，立即激活洞穴模式并强制下帧启动洞穴扫描
+                                if (effectiveCaveType != 0) {
+                                    MapRenderState::g_caveModeActive = true;
+                                    g_ticksSinceScan = 101;
+                                }
                             }
                         }
                     }
@@ -5411,13 +6022,13 @@ LL_TYPE_INSTANCE_HOOK(
         static int entityDelay = 0;
         if (++entityDelay >= 4) { // 提高刷新率至约 5Hz (原60为3秒/次，移动严重跳变)，近乎零开销实现丝滑雷达
             entityDelay = 0;
-            if (MapRenderState::showRadar) {
+            if (MapRenderState::showRadar || g_tabHeld || MapRenderState::showBigMap || MapRenderState::bigMapShowEntities) {
                 std::vector<RadarEntity> tempEntities;
                 auto& level = player->getLevel();
                 const auto& entities = level.getRuntimeActorList();
                 
                 for (auto* actor : entities) {
-                    if (!actor || actor == player) continue;
+                    if (!actor || IsLocalRadarActor(*this, *player, *actor)) continue;
                     if (!actor->isAlive()) continue;
                     if (actor->getDimensionId() != player->getDimensionId()) continue;
 
@@ -5428,23 +6039,67 @@ LL_TYPE_INSTANCE_HOOK(
                     if (dx * dx + dz * dz > MAP_DATA_RADIUS * MAP_DATA_RADIUS) continue;
 
                     int type = 2; 
-                    if (actor->isPlayer()) type = 0;
-                    else if (actor->hasCategory(ActorCategory::Item)) type = 3;
-                    else if (actor->hasCategory(ActorCategory::Monster)) type = 1;
+                    std::string entityType;
+                    std::string uuid;
+                    if (IsRadarPlayerLike(*actor)) {
+                        type = 0;
+                        entityType = "player";
+                        if (actor->isPlayer()) {
+                            auto* p = static_cast<class Player*>(actor);
+                            uuid = static_cast<std::string>(p->getUuid());
+                            ExtractPlayerSkinHead(p, uuid);
+                        }
+                    } else if (actor->hasCategory(ActorCategory::Item)) {
+                        type = 3;
+                        entityType = "item";
+                    } else if (actor->hasCategory(ActorCategory::Monster)) {
+                        type = 1;
+                        try { entityType = actor->getTypeName(); } catch (...) {}
+                    } else {
+                        type = 2;
+                        try { entityType = actor->getTypeName(); } catch (...) {}
+                    }
                     
-                    tempEntities.push_back({ePos.x, ePos.y, ePos.z, type});
+                    std::string nameTag;
+                    try {
+                        nameTag = actor->getNameTag();
+                    } catch (...) {}
+
+                    tempEntities.push_back({ePos.x, ePos.y, ePos.z, type, std::move(entityType), std::move(nameTag), std::move(uuid)});
                 }
-                g_radarEntities = tempEntities;
+                {
+                    std::lock_guard<std::mutex> lock(g_radarMutex);
+                    g_radarEntities = std::move(tempEntities);
+                }
                 g_radarUpdated.store(true);
-            } else if (!g_radarEntities.empty()) {
-                g_radarEntities.clear();
-                g_radarUpdated.store(true);
+                g_radarGeneration.fetch_add(1, std::memory_order_release);
+            } else {
+                bool hadEntities = false;
+                {
+                    std::lock_guard<std::mutex> lock(g_radarMutex);
+                    if (!g_radarEntities.empty()) {
+                        g_radarEntities.clear();
+                        hadEntities = true;
+                    }
+                }
+                if (hadEntities) {
+                    g_radarUpdated.store(true);
+                    g_radarGeneration.fetch_add(1, std::memory_order_release);
+                }
             }
         }
 
     } else {
         g_hasPlayer   = false;
         g_localPlayer = nullptr;
+        g_localPlayerUuid.clear();
+        {
+            std::lock_guard<std::mutex> lock(g_playerSkinMutex);
+            g_playerSkinHeads.clear();
+        }
+        clearPlayerHeadTextures.store(true);
+        MapRenderState::showSeedMap = false;
+        SeedMapManager::ClearWorldContext();
     }
 
     return result;

@@ -1,6 +1,8 @@
 #pragma once
 #include <atomic>
 #include <chrono>
+#include <mutex>
+#include <string>
 #include <vector>
 #include <mc/deps/core/math/Color.h>
 
@@ -11,6 +13,9 @@ namespace MapRenderState {
     inline float bigMapOffsetX = 0.0f;
     inline float bigMapOffsetZ = 0.0f;
     inline float bigMapZoom = 3.0f; // 默认放大 3 倍
+    inline bool bigMapShowEntities = false; // 全屏大地图生物头像显示开关 (直观图标按钮切换)
+    inline bool bigMapShowMarkers = true;  // 全屏大地图标记显示开关 (路径点 + 死亡点，图标按钮切换，持久化)
+    inline bool showChunkGrid = false;     // 区块网格显示开关 (小地图 + 大地图共用，图标按钮切换，持久化)
 
     // 当前玩家所处生物群系名称 (拆分为原始命名空间ID与本地化名称)
     inline std::string rawBiomeName = "minecraft:unknown";
@@ -31,8 +36,146 @@ namespace MapRenderState {
     inline int currentDimensionId = -999;
     inline std::atomic<bool> clearGPUCache{false}; // 用于通知 GPU 清理旧世界的贴图残留
 
+    // [维度切换] 全屏大地图浏览维度 (-999 表示跟随玩家物理维度，0=主世界, 1=下界, 2=末地)
+    inline int bigMapViewDimensionId = -999;
+
+    inline int GetEffectiveViewDimensionId() {
+        if (bigMapViewDimensionId >= 0 && bigMapViewDimensionId <= 2) {
+            return bigMapViewDimensionId;
+        }
+        return currentDimensionId;
+    }
+
+    // [世界出生点坐标]
+    inline int worldSpawnX = 0;
+    inline int worldSpawnY = 64;
+    inline int worldSpawnZ = 0;
+    inline bool hasWorldSpawn = false;
+
+    inline void GetWorldSpawnCoords(int& outX, int& outZ) {
+        if (hasWorldSpawn) {
+            outX = worldSpawnX;
+            outZ = worldSpawnZ;
+            return;
+        }
+        size_t pPos = currentWorldId.rfind("_P");
+        if (pPos != std::string::npos) {
+            std::string s = currentWorldId.substr(pPos + 2);
+            size_t under = s.find('_');
+            if (under != std::string::npos) {
+                try {
+                    outX = std::stoi(s.substr(0, under));
+                    outZ = std::stoi(s.substr(under + 1));
+                    return;
+                } catch (...) {}
+            }
+        }
+        outX = 0;
+        outZ = 0;
+    }
+
+    struct DimCameraState {
+        float centerWx = 0.0f;
+        float centerWz = 0.0f;
+        float zoom = 3.0f;
+        bool initialized = false;
+    };
+    inline DimCameraState dimCameraStates[3];
+
+    inline void ResetDimCameraStates() {
+        for (int i = 0; i < 3; ++i) {
+            dimCameraStates[i] = DimCameraState{};
+        }
+    }
+
+    inline void SaveDimCamera(int dim, float smoothPX, float smoothPZ) {
+        if (dim >= 0 && dim < 3) {
+            dimCameraStates[dim].centerWx = smoothPX - bigMapOffsetX / bigMapZoom;
+            dimCameraStates[dim].centerWz = smoothPZ - bigMapOffsetZ / bigMapZoom;
+            dimCameraStates[dim].zoom = bigMapZoom;
+            dimCameraStates[dim].initialized = true;
+        }
+    }
+
+    inline void RestoreDimCamera(int targetDim, int fromDim, float smoothPX, float smoothPZ) {
+        if (targetDim < 0 || targetDim >= 3) return;
+        // [下界/异界切主世界] 当位于下界（或末地）切换到主世界时，必须以出生点为中心
+        if ((fromDim == 1 || fromDim == 2) && targetDim == 0) {
+            int spX = 0, spZ = 0;
+            GetWorldSpawnCoords(spX, spZ);
+            float targetWx = (float)spX;
+            float targetWz = (float)spZ;
+            bigMapZoom = 3.0f;
+            bigMapOffsetX = (smoothPX - targetWx) * bigMapZoom;
+            bigMapOffsetZ = (smoothPZ - targetWz) * bigMapZoom;
+            dimCameraStates[0].centerWx = targetWx;
+            dimCameraStates[0].centerWz = targetWz;
+            dimCameraStates[0].zoom = bigMapZoom;
+            dimCameraStates[0].initialized = true;
+            return;
+        }
+        if (dimCameraStates[targetDim].initialized) {
+            bigMapZoom = dimCameraStates[targetDim].zoom;
+            float targetWx = dimCameraStates[targetDim].centerWx;
+            float targetWz = dimCameraStates[targetDim].centerWz;
+            bigMapOffsetX = (smoothPX - targetWx) * bigMapZoom;
+            bigMapOffsetZ = (smoothPZ - targetWz) * bigMapZoom;
+        } else {
+            bigMapZoom = 3.0f;
+            float targetWx = 0.0f;
+            float targetWz = 0.0f;
+            if (fromDim == 0 && targetDim == 1) {
+                targetWx = smoothPX / 8.0f;
+                targetWz = smoothPZ / 8.0f;
+            } else if (fromDim == 1 && targetDim == 0) {
+                int spX = 0, spZ = 0;
+                GetWorldSpawnCoords(spX, spZ);
+                targetWx = (float)spX;
+                targetWz = (float)spZ;
+            } else if (targetDim == 2) {
+                targetWx = 0.0f;
+                targetWz = 0.0f;
+            } else {
+                targetWx = smoothPX;
+                targetWz = smoothPZ;
+            }
+            bigMapOffsetX = (smoothPX - targetWx) * bigMapZoom;
+            bigMapOffsetZ = (smoothPZ - targetWz) * bigMapZoom;
+            dimCameraStates[targetDim].centerWx = targetWx;
+            dimCameraStates[targetDim].centerWz = targetWz;
+            dimCameraStates[targetDim].zoom = bigMapZoom;
+            dimCameraStates[targetDim].initialized = true;
+        }
+    }
+
+    inline void CenterCameraOnViewDimension(float smoothPX, float smoothPZ) {
+        int viewDim = GetEffectiveViewDimensionId();
+        if (viewDim == currentDimensionId) {
+            bigMapOffsetX = 0.0f;
+            bigMapOffsetZ = 0.0f;
+        } else {
+            float targetWx = 0.0f;
+            float targetWz = 0.0f;
+            if (currentDimensionId == 0 && viewDim == 1) {
+                targetWx = smoothPX / 8.0f;
+                targetWz = smoothPZ / 8.0f;
+            } else if ((currentDimensionId == 1 || currentDimensionId == 2) && viewDim == 0) {
+                int spX = 0, spZ = 0;
+                GetWorldSpawnCoords(spX, spZ);
+                targetWx = (float)spX;
+                targetWz = (float)spZ;
+            } else if (viewDim == 2) {
+                targetWx = 0.0f;
+                targetWz = 0.0f;
+            }
+            bigMapOffsetX = (smoothPX - targetWx) * bigMapZoom;
+            bigMapOffsetZ = (smoothPZ - targetWz) * bigMapZoom;
+        }
+    }
+
     // [新增] 路径点 UI 开启状态
     inline bool showWaypointUI = false;
+    inline bool showDeathPointUI = false;
     inline int waypointSortMode = 0; // 0=时间(最近), 1=时间(最远), 2=名称A-Z, 3=名称Z-A, 4=距离近-远, 5=距离远-近, 6=手动排序
     inline std::string waypointFolderFilter = ""; // ""=全部文件夹, "__ROOT__"=未分类, 其他=文件夹名
 
@@ -45,26 +188,98 @@ namespace MapRenderState {
     // [新增] 快捷键设置面板开启状态
     inline bool showHotkeySettings = false;
     inline bool showCaveSettings = false; // [洞穴地图] 洞穴设置面板
+    inline bool showExportPNGScreen = false; // [PNG导出] World Map PNG Export 全屏面板开启状态
+    inline bool showSeedMap = false; // [种子全知地图] 结构预测/群系查找/Slime区块面板开启状态
 
-    // [新增] 快捷键绑定结构 (虚拟键码，参考 Win32 VK_*)
-    // 默认值: M=0x4D, U=0x55, N=0x4E, Y=0x59, J=0x4A
-    // 0 表示已禁用 (清除设置)，不匹配任何 WM_KEYDOWN 的 wParam
+    // [PNG导出] PNG 导出面板状态与配置 (全部持久化保存于 config.json)
+    inline bool exportForceFullMap = false;     // 强制全图导出 (持久化，默认关)
+    inline bool exportMultipleImages = false;   // 多张无缩放图像 (持久化，默认关)
+    inline bool exportOpenFolder = true;        // 导出后自动打开所在文件夹 (持久化，默认开)
+    inline int  exportScaleDownSquare = 20;     // 单张图像最大尺寸 (0=不限制, 1..90=NxN 区域，持久化，默认20)
+    inline std::atomic<int> exportStage{0};     // 0=Idle, 1=Exporting, 2=Finished
+    inline std::atomic<int> exportResultType{-1}; // -1=None, 0=SUCCESS, 1=EMPTY, 2=NOT_PREPARED, 3=TOO_BIG, 4=OUT_OF_MEMORY, 5=IO_EXCEPTION, 6=CANCELED
+    inline std::atomic<bool> exportCancelRequested{false}; // 用户请求终止导出并清空已导出图片
+    inline std::atomic<int>  exportTotalTiles{0};          // 多张分片导出总片数
+    inline std::atomic<int>  exportCompletedTiles{0};      // 多张分片已完成片数
+    inline std::string exportResultPath = "";   // 导出结果路径展示
+    inline std::mutex exportResultMutex;
+
+    // [PNG导出] 当前大地图视野范围与框选区域 (用于区分 强制全图导出: 关 vs 开)
+    inline int  exportViewMinX = -256;
+    inline int  exportViewMaxX = 256;
+    inline int  exportViewMinZ = -256;
+    inline int  exportViewMaxZ = 256;
+    inline bool hasExportSelection = false;
+    inline int  exportSelMinX = 0;
+    inline int  exportSelMaxX = 0;
+    inline int  exportSelMinZ = 0;
+    inline int  exportSelMaxZ = 0;
+
+    inline void OpenExportPNGScreen() {
+        showExportPNGScreen = true;
+        if (exportStage.load() != 1) {
+            exportStage.store(0);
+            exportResultType.store(-1);
+            exportCancelRequested.store(false);
+            exportTotalTiles.store(0);
+            exportCompletedTiles.store(0);
+            std::lock_guard<std::mutex> lk(exportResultMutex);
+            exportResultPath.clear();
+        }
+    }
+
+    // [快捷键增强] 单键或多按键组合结构 (支持 Ctrl / Shift / Alt 修饰键)
+    // 默认值: M=0x4D, U=0x55, N=0x4E, Y=0x59, J=0x4A, Tab=0x09
+    // key=0 表示已禁用 (清除设置)，不匹配任何按键事件
     // openBigMap 支持自定义按键，但不可清除 (严禁设为 0)，防止玩家因误清除导致无法呼出操作面板
+    struct Hotkey {
+        int key = 0;              // 虚拟键码 (Win32 VK_*)，0 表示已禁用 (清除)
+        uint8_t modifiers = 0;    // 修饰键掩码 (MOD_CTRL, MOD_SHIFT, MOD_ALT)
+
+        static constexpr uint8_t HK_MOD_CTRL  = 1 << 0;
+        static constexpr uint8_t HK_MOD_SHIFT = 1 << 1;
+        static constexpr uint8_t HK_MOD_ALT   = 1 << 2;
+
+        constexpr bool IsEmpty() const { return key == 0; }
+        void Clear() { key = 0; modifiers = 0; }
+
+        constexpr bool operator==(const Hotkey& o) const {
+            return key == o.key && modifiers == o.modifiers;
+        }
+        constexpr bool operator!=(const Hotkey& o) const {
+            return !(*this == o);
+        }
+    };
+
     struct HotkeyBindings {
-        int openBigMap        = 0x4D; // M: 切换大地图 (可自定义，不可清除)
-        int openWaypointMgr   = 0x55; // U: 切换路径点管理器
-        int toggleMinimap     = 0x4E; // N: 切换小地图显示
-        int toggleMinimapShape= 0x59; // Y: 切换小地图形状
-        int toggleMinimapRot  = 0x4A; // J: 切换小地图旋转
+        Hotkey openBigMap        = { 0x4D, 0 }; // M: 切换大地图 (可自定义，不可清除)
+        Hotkey openWaypointMgr   = { 0x55, 0 }; // U: 切换路径点管理器
+        Hotkey openDeathPointMgr = { 0x49, 0 }; // I: 切换死亡记录管理器
+        Hotkey toggleMinimap     = { 0x4E, 0 }; // N: 切换小地图显示
+        Hotkey toggleMinimapShape= { 0x59, 0 }; // Y: 切换小地图形状
+        Hotkey toggleMinimapRot  = { 0x4A, 0 }; // J: 切换小地图旋转
+        Hotkey holdEntities      = { 0x09, 0 }; // Tab: 显示生物头像 (小地图/大地图)
+        Hotkey toggleSeedMap     = { 0x4B, 0 }; // K: 切换种子全知地图
 
         // 系统预设默认值 (单一来源，供"单行重置"与"全部重置"共用)
         static constexpr HotkeyBindings Defaults() {
-            return { 0x4D, 0x55, 0x4E, 0x59, 0x4A };
+            return {
+                { 0x4D, 0 },
+                { 0x55, 0 },
+                { 0x49, 0 },
+                { 0x4E, 0 },
+                { 0x59, 0 },
+                { 0x4A, 0 },
+                { 0x09, 0 },
+                { 0x4B, 0 }
+            };
         }
     };
     inline HotkeyBindings g_hotkeys;
     // 正在监听按键的重绑目标 (nullptr=未在监听)
-    inline int* g_listeningHotkey = nullptr;
+    inline Hotkey* g_listeningHotkey = nullptr;
+    // 监听状态下实时记录的修饰键组合 (Ctrl / Shift / Alt)
+    inline uint8_t g_listeningModifiers = 0;
     // [快捷键增强] Ctrl+Z 撤销请求标志 (由 WndProc 设置，渲染线程消费)
     inline std::atomic<bool> g_hotkeyUndoRequested{false};
 
@@ -86,15 +301,16 @@ namespace MapRenderState {
         bool isTeleportUIActive = (tp == (int)TeleportState::Loading || 
                                    tp == (int)TeleportState::Validating || 
                                    tp == (int)TeleportState::Failed);
-        return showBigMap || showWaypointUI || showMiniMapPosSettings || showHotkeySettings || showCaveSettings ||
-               isTeleportUIActive;
+        return showBigMap || showWaypointUI || showDeathPointUI || showMiniMapPosSettings || showHotkeySettings || showCaveSettings ||
+               showExportPNGScreen || showSeedMap || isTeleportUIActive;
     }
 
-    // [新增] 跨菜单桥接：大地图右键唤起新建地标的预设坐标
+    // [新增] 跨菜单桥接：大地图右键唤起新建地标的预设坐标与归属维度
     inline bool triggerAddWaypoint = false;
     inline int addWaypointX = -999999;
     inline int addWaypointY = -999999;
     inline int addWaypointZ = -999999;
+    inline int addWaypointDim = -1; // -1=当前维度, 0=主世界, 1=下界, 2=末地
 
     // [新增] 原生瞬间传送信号器
     inline std::atomic<bool> triggerTeleport{false};
@@ -178,9 +394,27 @@ struct RadarEntity {
     float y;
     float z;
     int type; 
+    std::string typeName;
+    std::string nameTag;
+    std::string uuid;
 };
 
+struct PlayerSkinHead {
+    uint8_t pixels[8 * 8 * 4]{}; // 8x8 RGBA
+    uint64_t fingerprint = 0;
+    uint64_t revision = 0;
+    bool valid = false;
+};
+
+extern std::unordered_map<std::string, PlayerSkinHead> g_playerSkinHeads; // keyed by UUID
+inline std::mutex g_playerSkinMutex;
+extern std::string g_localPlayerUuid;
+inline std::atomic<bool> clearPlayerHeadTextures{false};
+
+inline std::mutex g_radarMutex;
 extern std::atomic<bool> g_radarUpdated;
+inline std::atomic<uint64_t> g_radarGeneration{1};
+inline std::atomic<bool> g_tabHeld{false};
 extern std::vector<RadarEntity> g_radarEntities;
 inline std::atomic<bool> g_mapDataUpdated{true}; 
 
@@ -199,4 +433,13 @@ extern float g_caveHeights[MAP_DATA_SIZE][MAP_DATA_SIZE];
 // 记录最后一次生成贴图时的绝对中心坐标
 inline int g_lastRenderX = 0;
 inline int g_lastRenderZ = 0;
+
+// [小地图极速装载核心] 核心视野半径 (80 格已完整覆盖所有缩放下的小地图圆形视口)
+constexpr int SCAN_INNER_RADIUS = 80;
+
+// 小地图烘焙与推送到 GPU 的全局纹理字节缓冲及中心坐标
+inline uint8_t g_textureData[MAP_DATA_SIZE * MAP_DATA_SIZE * 4];
+inline float g_textureCenterX = 0.0f;
+inline float g_textureCenterZ = 0.0f;
+inline std::atomic<bool> g_textureReadyToUpload{false};
 

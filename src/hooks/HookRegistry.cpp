@@ -2,11 +2,15 @@
 #include "hooks/PlayerHook.h"
 #include "hooks/UIRenderHook.h"
 #include "hooks/DX11Hook.h"
+#include "hooks/BeaconBeamHook.h"
 
 void registerAllHooks() {
     // 只注册原生的游戏逻辑与 UI 钩子
     ClientInstanceUpdateHook::hook();
     UIRenderContextFlushTextHook::hook();
+
+    // [死亡信标光束] 向原版方块实体渲染队列注入假信标
+    DeathBeamRenderBlockEntitiesHook::hook();
 
     LocalPlayerApplyTurnDeltaHook::hook();
     GameModeStartDestroyBlockHook::hook();
@@ -34,6 +38,8 @@ void registerAllHooks() {
 void unregisterAllHooks() {
     ClientInstanceUpdateHook::unhook();
     UIRenderContextFlushTextHook::unhook();
+
+    DeathBeamRenderBlockEntitiesHook::unhook();
 
     LocalPlayerApplyTurnDeltaHook::unhook();
     GameModeStartDestroyBlockHook::unhook();
@@ -68,4 +74,9 @@ void shutdownCacheWriteThread() {
 // 通过此包装函数桥接调用 inline 的 DX11Hook::shutdown()
 void shutdownDX11Hook() {
     DX11Hook::shutdown();
+}
+
+// 非 inline 包装: 释放死亡信标光束模块持有的全部假 BeaconBlockActor
+void shutdownDeathBeams() {
+    ShutdownAllDeathBeams();
 }
