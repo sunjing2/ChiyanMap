@@ -32,7 +32,7 @@ target("ChiyanMap")
     )
     add_defines("NOMINMAX", "UNICODE")
     add_packages("levilamina", "imgui", "minhook", "nlohmann_json")
-    add_syslinks("d3d11", "dxgi", "user32", "delayimp")
+    add_syslinks("d3d11", "dxgi", "user32", "delayimp", "windowscodecs", "ole32", "shell32")
     add_ldflags("/DELAYLOAD:dwmapi.dll", "/DELAYLOAD:imm32.dll", "/DELAYLOAD:LeviLamina.dll")
     add_shflags("/DELAYLOAD:dwmapi.dll", "/DELAYLOAD:imm32.dll", "/DELAYLOAD:LeviLamina.dll")
     set_kind("shared")
@@ -41,8 +41,22 @@ target("ChiyanMap")
     
     add_headerfiles("src/**.h")
     add_files("src/**.cpp")
+    add_files(
+        "third_party/cubiomes-bedrock/biomenoise.c",
+        "third_party/cubiomes-bedrock/biomes.c",
+        "third_party/cubiomes-bedrock/cave.c",
+        "third_party/cubiomes-bedrock/finders.c",
+        "third_party/cubiomes-bedrock/generator.c",
+        "third_party/cubiomes-bedrock/layers.c",
+        "third_party/cubiomes-bedrock/mt.c",
+        "third_party/cubiomes-bedrock/noise.c",
+        "third_party/cubiomes-bedrock/quadbase.c",
+        "third_party/cubiomes-bedrock/util.c"
+    )
     add_includedirs("src")
-    -- 完全移除服务端和客户端的 if-else 区分逻辑
+    add_includedirs("third_party/cubiomes-bedrock")
+    add_defines("_USE_MATH_DEFINES")
+    add_cflags("/D__attribute__(x)=", {tools = {"cl"}})
 
     after_build(function (target)
         local lang_dir = path.join(os.projectdir(), "lang")
@@ -51,5 +65,13 @@ target("ChiyanMap")
             os.mkdir(dest_lang_dir)
             os.cp(path.join(lang_dir, "*"), dest_lang_dir)
             cprint("${bright green}[ChiyanMap]: ${reset}copied lang files to " .. dest_lang_dir)
+        end
+
+        local heads_dir = path.join(os.projectdir(), "heads")
+        local dest_heads_dir = path.join(os.projectdir(), "bin", "ChiyanMap", "heads")
+        if os.isdir(heads_dir) then
+            os.mkdir(dest_heads_dir)
+            os.cp(path.join(heads_dir, "*"), dest_heads_dir)
+            cprint("${bright green}[ChiyanMap]: ${reset}copied head icons to " .. dest_heads_dir)
         end
     end)

@@ -76,9 +76,37 @@ namespace MapCacheManager {
         return isCave ? "cave/" : "";
     }
 
+    // [生物群系合法性检查] 严格核实该生物群系是否属于指定维度，防止跨维度写入污染
+    inline bool IsValidBiomeForDimension(int dimId, const std::string& rawBiomeName) {
+        std::string name = rawBiomeName;
+        size_t colon = name.find(':');
+        if (colon != std::string::npos) name = name.substr(colon + 1);
+
+        if (dimId == 1) { // 下界
+            return (name == "nether_wastes" || name == "hell" ||
+                    name == "crimson_forest" || name == "warped_forest" ||
+                    name == "soulsand_valley" || name == "basalt_deltas");
+        } else if (dimId == 2) { // 末地
+            return (name == "the_end" || name == "end_highlands" ||
+                    name == "end_medium_island" || name == "end_low_island" ||
+                    name == "end_barrens" || name == "small_end_islands");
+        } else if (dimId == 0) { // 主世界
+            if (name == "nether_wastes" || name == "hell" ||
+                name == "crimson_forest" || name == "warped_forest" ||
+                name == "soulsand_valley" || name == "basalt_deltas" ||
+                name == "the_end" || name == "end_highlands" ||
+                name == "end_medium_island" || name == "end_low_island" ||
+                name == "end_barrens" || name == "small_end_islands") {
+                return false;
+            }
+            return true;
+        }
+        return true;
+    }
+
     void Init();
     void Shutdown();
-    void UpdateFromScan(int centerX, int centerZ, mce::Color scanColors[MAP_DATA_SIZE][MAP_DATA_SIZE], float scanHeights[MAP_DATA_SIZE][MAP_DATA_SIZE], bool isCave = false);
+    void UpdateFromScan(int targetDim, int centerX, int centerZ, mce::Color scanColors[MAP_DATA_SIZE][MAP_DATA_SIZE], float scanHeights[MAP_DATA_SIZE][MAP_DATA_SIZE], bool isCave = false);
     bool FetchRegionTextureData(uint64_t hash, uint8_t* outBuffer, bool forceCopy = false);
 
     // [新增] 当 GPU 繁忙时，退回纹理更新请求
@@ -87,8 +115,14 @@ namespace MapCacheManager {
     // [新增] 跨界热重载引擎
     void SwitchWorld(const std::string& worldId, int dimensionId);
 
+    // [新增] 获取当前正在加载/浏览的维度 ID
+    int GetLoadedDimensionId();
+
+    // [新增] 切换浏览维度 (专供全屏大地图快速切换不同维度)
+    void SwitchViewDimension(int dimensionId);
+
     // [新增] 生物群系缓存写入 (从扫描数据批量写入)
-    void UpdateBiomesFromScan(const std::vector<BiomeEntry>& entries);
+    void UpdateBiomesFromScan(int targetDim, const std::vector<BiomeEntry>& entries);
 
     // [新增] 地表Y缓存查询 (供传送时使用)
     // isCave=true 时查询洞穴/下界缓存数据 (dim_<n>/cave/)
@@ -99,4 +133,37 @@ namespace MapCacheManager {
 
     // [新增] 生物群系缓存查询 (供大地图悬停显示)
     bool GetCachedBiomeName(int worldX, int worldZ, std::string& outName);
+
+    // [小地图极速装载与防黑块核心] 从缓存预填充 513x513 小地图网格
+    // centerX, centerZ: 小地图中心世界坐标
+    // outColors: 目标颜色网格 (mce::Color)
+    // outHeights: 目标高度网格 (float)
+    // isCave: 是否为洞穴/下界模式
+    // onlyIfMissing: 若为 true，仅填充未探索/透明像素 (alpha <= 0.01f)，保留已有数据
+    // outTextureData: 可选，直接预填充 DX11 纹理字节缓冲 (RGBA8)，实现 0 延迟秒开
+    void PrefillMapGrid(int centerX, int centerZ, 
+                        mce::Color outColors[MAP_DATA_SIZE][MAP_DATA_SIZE], 
+                        float outHeights[MAP_DATA_SIZE][MAP_DATA_SIZE], 
+                        bool isCave, 
+                        bool onlyIfMissing = false,
+                        uint8_t* outTextureData = nullptr);
+
+    // [PNG导出] 实时预览计算结果 (供 ImGui 面板动态展示无损放大倍率与输出尺寸)
+    struct ExportPreviewInfo {
+        int minBlockX = 0, maxBlockX = 0;
+        int minBlockZ = 0, maxBlockZ = 0;
+        int areaW = 0, areaH = 0;
+        int effectivePixelScale = 4; // 实际生效的单方块无损像素倍率 (1方块 = SxS像素)
+        int outW = 0, outH = 0;      // 输出总像素宽高 (单图模式) 或 单张分片最大像素宽高 (多图模式)
+        int tileCount = 1;
+        int tileSpan = 256;
+        bool hasValidPixels = false;
+    };
+    ExportPreviewInfo GetExportPreviewInfo();
+
+    // [PNG导出] 刷新/失效预览参数计算缓存
+    void InvalidateExportPreview();
+
+    // [PNG导出] 异步导出当前世界/维度地图为 PNG (复刻 Xaero PNGExporter)
+    void TriggerExportMapToPNG();
 }

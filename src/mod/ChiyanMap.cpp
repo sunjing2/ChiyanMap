@@ -3,7 +3,9 @@
 #include "state/MapRenderState.h"
 #include "state/MapCacheManager.h"
 #include "state/WaypointManager.h"
+#include "state/DeathPointManager.h"
 #include "state/LanguageManager.h"
+#include "state/SeedMapManager.h"
 #include "ll/api/mod/RegisterHelper.h"
 #include "ll/api/utils/SystemUtils.h"
 #include "ll/api/io/FileUtils.h"
@@ -45,6 +47,8 @@ int g_playerBlockZ = 0;
 
 std::atomic<bool> g_radarUpdated{false};
 std::vector<RadarEntity> g_radarEntities;
+std::unordered_map<std::string, PlayerSkinHead> g_playerSkinHeads;
+std::string g_localPlayerUuid;
 // 注意：旧的 g_mapDataUpdated 已经删除以修复 LNK2001
 
 namespace chiyan_map {
@@ -99,6 +103,8 @@ bool ChiyanMap::load() {
     registerAllHooks();
     MapCacheManager::Init();
     WaypointManager::Init(); // 初始化地标 JSON 引擎
+    DeathPointManager::Init(); // 初始化死亡记录引擎
+    SeedMapManager::Init();
     return true;
 }
 
@@ -127,6 +133,7 @@ bool ChiyanMap::disable() {
     g_localPlayer = nullptr;
     g_clientInstance = nullptr;
 
+    SeedMapManager::Shutdown();
     shutdownCacheWriteThread();
     MapCacheManager::Shutdown();
     shutdownDX11Hook();
