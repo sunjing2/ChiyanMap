@@ -38,6 +38,7 @@ using ChiyanMapMaterialType = ::SharedTypes::v1_26_20::MaterialType;
 #include <mc/world/level/BlockPos.h>
 #include <mc/deps/core/math/Vec3.h>
 #include <mc/world/level/Level.h>
+#include <mc/client/multiplayer/ClientLevel.h>
 #include <mc/world/actor/Actor.h>
 #include <mc/legacy/ActorRuntimeID.h>
 #include <mc/world/effect/MobEffectInstance.h>
@@ -4388,6 +4389,31 @@ inline bool FindNearestSafeSpawn(BlockSource& region, int& x, int& z, short& out
     return false;
 }
 
+// 线程安全/SEH保护的游戏刻时间查询函数 (仅在主线程调用)
+inline int SafeQueryGameTime(ClientInstance* ci) noexcept {
+    if (!ci) return -1;
+    __try {
+        if (ci->hasLevel()) {
+            auto* cl = ci->getLevel();
+            if (cl) {
+                int t = cl->getTime();
+                if (t >= 0) return t;
+            }
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+
+    __try {
+        auto* region = ci->getRegion();
+        if (region) {
+            return region->getLevel().getTime();
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+
+    return -1;
+}
+
 LL_TYPE_INSTANCE_HOOK(
     ClientInstanceUpdateHook,
     ll::memory::HookPriority::Normal,
@@ -4437,6 +4463,51 @@ LL_TYPE_INSTANCE_HOOK(
             g_playerYaw = player->getRotation().y;
             g_hasPlayer   = true;
             g_localPlayer = player;
+
+            int gameTicks = SafeQueryGameTime(this);
+            if (gameTicks >= 0) {
+                MapRenderState::g_gameTimeTicks.store(gameTicks);
+            }
+
+            // [HUD 实时光照等级] 当开启光照显示时，安全采样脚部方块光照
+            if (MapRenderState::infoShowLight) {
+                try {
+                    BlockSource* region = this->getRegion();
+                    if (region) {
+                        BlockPos pPos((int)std::floor(pos.x), (int)std::floor(pos.y), (int)std::floor(pos.z));
+                        BrightnessPair bp = region->getBrightnessPair(pPos);
+                        unsigned char sl = *(reinterpret_cast<const unsigned char*>(&bp.sky));
+                        unsigned char bl = *(reinterpret_cast<const unsigned char*>(&bp.block));
+                        MapRenderState::g_skyLight.store((int)sl);
+                        MapRenderState::g_blockLight.store((int)bl);
+                    }
+                } catch (...) {}
+            }
+
+            // [Xaero 特性] 靠近 6 个方块内自动清除到达过的死亡地点 (5秒免删安全期)
+            if (MapRenderState::autoRemoveDeathpoints) {
+                long long nowSec = std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                ).count();
+                std::string toRemoveId;
+                {
+                    std::lock_guard<std::mutex> lock(DeathPointManager::g_deathMutex);
+                    for (const auto& dp : DeathPointManager::g_deathPoints) {
+                        if (dp.dimensionId != MapRenderState::currentDimensionId) continue;
+                        if (nowSec - dp.timestamp < 5) continue; // 死亡 5 秒内免删缓冲期
+                        float dx = ((float)dp.x + 0.5f) - pos.x;
+                        float dy = (float)dp.y - pos.y;
+                        float dz = ((float)dp.z + 0.5f) - pos.z;
+                        if (dx * dx + dy * dy + dz * dz <= 36.0f) { // 6方块以内
+                            toRemoveId = dp.id;
+                            break;
+                        }
+                    }
+                }
+                if (!toRemoveId.empty()) {
+                    DeathPointManager::RemoveDeathPoint(toRemoveId);
+                }
+            }
         } catch (...) {
             // player 指针可能失效(维度切换/区块卸载/退出过程), 跳过本帧
             return result;
@@ -5179,10 +5250,12 @@ LL_TYPE_INSTANCE_HOOK(
                     // 维度/世界切换：立即中止当前扫描并清除待写缓存，绝不允许旧维度残留数据写入新维度缓存
                     AbortActiveScanAndPendingWrites();
 
+                    if (MapRenderState::currentWorldId != finalWorldId) {
+                        MapRenderState::ResetDimCameraStates();
+                    }
                     MapRenderState::currentWorldId = finalWorldId;
                     MapRenderState::currentDimensionId = dimId;
                     MapRenderState::bigMapViewDimensionId = -999;
-                    MapRenderState::ResetDimCameraStates();
 
                     MapCacheManager::SwitchWorld(finalWorldId, dimId);
                     WaypointManager::SwitchWorld(finalWorldId, dimId);

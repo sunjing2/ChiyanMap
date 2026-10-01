@@ -21,6 +21,96 @@ namespace LanguageManager {
 
     // 内置多语言字典兜底 (覆盖 16 种语言，彻底杜绝界面出现未翻译 raw key)
     static const std::unordered_map<std::string, std::unordered_map<std::string, std::string>> g_builtinTranslations = {
+        {"DEATH_POINTS_HINT", {
+            {"zh_CN", "死亡记录按世界保存，支持跨维度传送。"},
+            {"zh_TW", "死亡紀錄按世界保存，支援跨維度傳送。"},
+            {"en_US", "Death records are saved per world. Cross-dimension teleportation is supported."},
+            {"de",    "Todesaufzeichnungen werden pro Welt gespeichert. Dimensionsübergreifende Teleportation wird unterstützt."},
+            {"es",    "Los registros de muerte se guardan por mundo. Se admite la teletransportación entre dimensiones."},
+            {"fr",    "Les enregistrements de mort sont sauvegardés par monde. La téléportation interdimensionnelle est prise en charge."},
+            {"id",    "Catatan kematian disimpan per dunia. Teleportasi lintas dimensi didukung."},
+            {"it",    "I record di morte sono salvati per mondo. Il teletrasporto tra dimensioni è supportato."},
+            {"ja",    "死亡記録はワールドごとに保存されます。ディメンション間テレポートに対応しています。"},
+            {"ko",    "사망 기록은 월드별로 저장됩니다. 차원 간 순간이동을 지원합니다."},
+            {"pt_BR", "Os registros de morte são salvos por mundo. O teletransporte entre dimensões é suportado."},
+            {"ru",    "Записи о смертях сохраняются для каждого мира. Поддерживается межпространственная телепортация."},
+            {"th",    "บันทึกการตายจะถูกบันทึกแยกตามโลก รองรับการเทเลพอร์ตข้ามมิติ"},
+            {"tr",    "Ölüm kayıtları dünya bazında kaydedilir. Boyutlar arası ışınlanma desteklenir."},
+            {"uk",    "Записи про смерть зберігаються для кожного світу. Підтримується міжпросторове переміщення."},
+            {"vi",    "Hồ sơ tử vong được lưu theo từng thế giới. Hỗ trợ dịch chuyển xuyên không gian."}
+        }},
+        {"DEATH_POINT_LOCATE", {
+            {"zh_CN", "定位"},
+            {"zh_TW", "定位"},
+            {"en_US", "Locate"},
+            {"de",    "Lokalisieren"},
+            {"es",    "Localizar"},
+            {"fr",    "Localiser"},
+            {"id",    "Lokasi"},
+            {"it",    "Localizza"},
+            {"ja",    "位置表示"},
+            {"ko",    "위치 보기"},
+            {"pt_BR", "Localizar"},
+            {"ru",    "Найти"},
+            {"th",    "หาตำแหน่ง"},
+            {"tr",    "Konum"},
+            {"uk",    "Знайти"},
+            {"vi",    "Định vị"}
+        }},
+        {"SHOW_BIGMAP_HOVER_BOX", {
+            {"zh_CN", "全屏大地图显示悬停选框"},
+            {"zh_TW", "全螢幕大地圖顯示懸停選框"},
+            {"en_US", "Show Big Map Hover Box"},
+            {"de",    "Hover-Auswahlbox auf Weltkarte anzeigen"},
+            {"es",    "Mostrar cuadro de selección al pasar el ratón en mapa grande"},
+            {"fr",    "Afficher la boîte de survol sur la grande carte"},
+            {"id",    "Tampilkan Kotak Hover Peta Besar"},
+            {"it",    "Mostra riquadro di selezione al passaggio del mouse sulla mappa grande"},
+            {"ja",    "大マップでカーソル選択枠を表示"},
+            {"ko",    "전체 지도에서 마우스 오버 선택 상자 표시"},
+            {"pt_BR", "Mostrar caixa de seleção ao passar o mouse no mapa grande"},
+            {"ru",    "Показывать рамку наведения курсора на большой карте"},
+            {"th",    "แสดงกล่องเลือกตำแหน่งเมาส์บนแผนที่ขนาดใหญ่"},
+            {"tr",    "Büyük haritada imleç vurgu kutusunu göster"},
+            {"uk",    "Показувати рамку наведення курсора на великій мапі"},
+            {"vi",    "Hiển thị khung di chuột trên bản đồ lớn"}
+        }},
+        {"BIGMAP_HOVER_BOX_TOGGLE_ON", {
+            {"zh_CN", "悬停选框: 关 (点击显示)"},
+            {"zh_TW", "懸停選框: 關 (點擊顯示)"},
+            {"en_US", "Hover Box: OFF (Click to show)"},
+            {"de",    "Hover-Box: AUS (Klicken zum Anzeigen)"},
+            {"es",    "Cuadro de cursor: DESACTIVADO (Clic para mostrar)"},
+            {"fr",    "Boîte de survol : DÉSACTIVÉE (Cliquer pour afficher)"},
+            {"id",    "Kotak Hover: MATI (Klik untuk tampilkan)"},
+            {"it",    "Riquadro puntatore: DISATTIVATO (Fai clic per mostrare)"},
+            {"ja",    "ホバー枠: オフ (クリックで表示)"},
+            {"ko",    "오버 상자: 끔 (클릭하여 켜기)"},
+            {"pt_BR", "Caixa de cursor: DESATIVADO (Clique para exibir)"},
+            {"ru",    "Рамка наведения: ВЫКЛ (Нажмите для показа)"},
+            {"th",    "กล่องโฮเวอร์: ปิด (คลิกเพื่อแสดง)"},
+            {"tr",    "Vurgu Kutusu: KAPALI (Göstermek için tıkla)"},
+            {"uk",    "Рамка наведення: ВИМК (Натисніть для показу)"},
+            {"vi",    "Khung di chuột: TẮT (Nhấp để bật)"}
+        }},
+        {"BIGMAP_HOVER_BOX_TOGGLE_OFF", {
+            {"zh_CN", "悬停选框: 开 (点击隐藏)"},
+            {"zh_TW", "懸停選框: 開 (點擊隱藏)"},
+            {"en_US", "Hover Box: ON (Click to hide)"},
+            {"de",    "Hover-Box: AN (Klicken zum Ausblenden)"},
+            {"es",    "Cuadro de cursor: ACTIVADO (Clic para ocultar)"},
+            {"fr",    "Boîte de survol : ACTIVÉE (Cliquer pour masquer)"},
+            {"id",    "Kotak Hover: HIDUP (Klik untuk sembunyikan)"},
+            {"it",    "Riquadro puntatore: ATTIVATO (Fai clic per nascondere)"},
+            {"ja",    "ホバー枠: オン (クリックで非表示)"},
+            {"ko",    "오버 상자: 켬 (클릭하여 끄기)"},
+            {"pt_BR", "Caixa de cursor: ATIVADO (Clique para ocultar)"},
+            {"ru",    "Рамка наведения: ВКЛ (Нажмите для скрытия)"},
+            {"th",    "กล่องโฮเวอร์: เปิด (คลิกเพื่อซ่อน)"},
+            {"tr",    "Vurgu Kutusu: AÇIK (Gizlemek için tıkla)"},
+            {"uk",    "Рамка наведення: УВІМК (Натисніть для приховання)"},
+            {"vi",    "Khung di chuột: BẬT (Nhấp để tắt)"}
+        }},
         {"HOTKEY_CANNOT_CLEAR", {
             {"zh_CN", "该快捷键不可清除"},
             {"zh_TW", "該快捷鍵不可清除"},
@@ -744,6 +834,20 @@ namespace LanguageManager {
                 MapRenderState::bigMapShowEntities = j.value("bigMapShowEntities", false);
                 MapRenderState::bigMapShowMarkers = j.value("bigMapShowMarkers", true);
                 MapRenderState::showChunkGrid = j.value("showChunkGrid", false);
+                MapRenderState::bigMapShowHoverBox = j.value("bigMapShowHoverBox", true);
+                MapRenderState::infoShowCoords = j.value("infoShowCoords", true);
+                MapRenderState::infoShowNetherCoords = j.value("infoShowNetherCoords", false);
+                MapRenderState::infoShowFacing = j.value("infoShowFacing", false);
+                MapRenderState::infoShowBiome = j.value("infoShowBiome", true);
+                MapRenderState::infoShowTime = j.value("infoShowTime", false);
+                MapRenderState::infoShowLight = j.value("infoShowLight", false);
+                MapRenderState::infoShowChunkCoords = j.value("infoShowChunkCoords", false);
+                MapRenderState::alwaysShowNametags = j.value("alwaysShowNametags", true);
+                MapRenderState::radarHeightIndicators = j.value("radarHeightIndicators", true);
+                MapRenderState::entityDepth = j.value("entityDepth", true);
+                MapRenderState::entityHeightLimit = j.value("entityHeightLimit", 0);
+                MapRenderState::autoRemoveDeathpoints = j.value("autoRemoveDeathpoints", true);
+                MapRenderState::enlargeMinimapToggle = j.value("enlargeMinimapToggle", false);
                 MapRenderState::g_caveModeType = j.value("caveModeType", (int)MapRenderState::CaveModeType::Layered);
                 MapRenderState::g_caveTopYAuto = j.value("caveTopYAuto", true);
                 MapRenderState::g_caveTopY = j.value("caveTopY", 64);
@@ -791,6 +895,11 @@ namespace LanguageManager {
                     MapRenderState::g_hotkeys.toggleMinimapRot = loadHk("toggleMinimapRot", def.toggleMinimapRot);
                     MapRenderState::g_hotkeys.holdEntities     = loadHk("holdEntities", def.holdEntities);
                     MapRenderState::g_hotkeys.toggleSeedMap    = loadHk("toggleSeedMap", def.toggleSeedMap);
+                    MapRenderState::g_hotkeys.enlargeMinimap   = loadHk("enlargeMinimap", def.enlargeMinimap);
+                    // 自动将旧版与原版状态效果界面冲突的 Z 键 (0x5A) 迁移为 X 键 (0x58)
+                    if (MapRenderState::g_hotkeys.enlargeMinimap.key == 0x5A && MapRenderState::g_hotkeys.enlargeMinimap.modifiers == 0) {
+                        MapRenderState::g_hotkeys.enlargeMinimap = def.enlargeMinimap;
+                    }
                 }
 
                 auto seedMapSettings = SeedMapManager::GetSettings();
@@ -857,6 +966,20 @@ namespace LanguageManager {
         j["bigMapShowEntities"] = MapRenderState::bigMapShowEntities;
         j["bigMapShowMarkers"] = MapRenderState::bigMapShowMarkers;
         j["showChunkGrid"] = MapRenderState::showChunkGrid;
+        j["bigMapShowHoverBox"] = MapRenderState::bigMapShowHoverBox;
+        j["infoShowCoords"] = MapRenderState::infoShowCoords;
+        j["infoShowNetherCoords"] = MapRenderState::infoShowNetherCoords;
+        j["infoShowFacing"] = MapRenderState::infoShowFacing;
+        j["infoShowBiome"] = MapRenderState::infoShowBiome;
+        j["infoShowTime"] = MapRenderState::infoShowTime;
+        j["infoShowLight"] = MapRenderState::infoShowLight;
+        j["infoShowChunkCoords"] = MapRenderState::infoShowChunkCoords;
+        j["alwaysShowNametags"] = MapRenderState::alwaysShowNametags;
+        j["radarHeightIndicators"] = MapRenderState::radarHeightIndicators;
+        j["entityDepth"] = MapRenderState::entityDepth;
+        j["entityHeightLimit"] = MapRenderState::entityHeightLimit;
+        j["autoRemoveDeathpoints"] = MapRenderState::autoRemoveDeathpoints;
+        j["enlargeMinimapToggle"] = MapRenderState::enlargeMinimapToggle;
         j["caveModeType"] = MapRenderState::g_caveModeType;
         j["caveTopYAuto"] = MapRenderState::g_caveTopYAuto;
         j["caveTopY"] = MapRenderState::g_caveTopY;
@@ -905,6 +1028,7 @@ namespace LanguageManager {
         saveHk("toggleMinimapRot", MapRenderState::g_hotkeys.toggleMinimapRot);
         saveHk("holdEntities", MapRenderState::g_hotkeys.holdEntities);
         saveHk("toggleSeedMap", MapRenderState::g_hotkeys.toggleSeedMap);
+        saveHk("enlargeMinimap", MapRenderState::g_hotkeys.enlargeMinimap);
 
         std::ofstream out(filePath);
         if (out.is_open()) {
@@ -1009,14 +1133,29 @@ namespace LanguageManager {
             {"MODERN_DEATH_MANAGER", "Death Records"},
             {"DEATH_POINTS_TITLE", "Death Records (Press 'I' or 'Esc' to Close)##Deaths"},
             {"DEATH_POINTS_EMPTY", "No death records yet."},
-            {"DEATH_POINTS_HINT", "Death records are saved per world. Teleportation is only available within the current dimension."},
+            {"DEATH_POINTS_HINT", "Death records are saved per world. Cross-dimension teleportation is supported."},
             {"DEATH_POINT_TELEPORT", "Teleport"},
+            {"DEATH_POINT_LOCATE", "Locate"},
             {"DEATH_POINT_DELETE", "Delete"},
             {"DEATH_POINT_CREATE_WP", "Create Waypoint"},
             {"DEATH_POINT_WP_PREFIX", "Death"},
             {"MODERN_DIMENSION_MISMATCH", "Different dimension"},
             {"OPEN_DEATH_MANAGER", "Open Death Records"},
-            {"DEATH_POINT_ALREADY_CONVERTED", "Converted"}
+            {"DEATH_POINT_ALREADY_CONVERTED", "Converted"},
+            {"HOTKEY_ENLARGE_MINIMAP", "Enlarge Minimap"},
+            {"RADAR_SETTINGS", "Radar & Entity Settings"},
+            {"RADAR_HEIGHT_INDICATORS", "Entity Height Indicators (▲/▼)"},
+            {"ENTITY_DEPTH", "Entity Depth Shading"},
+            {"ENTITY_HEIGHT_LIMIT", "Entity Height Limit"},
+            {"ENTITY_HEIGHT_LIMIT_UNLIMITED", "Unlimited"},
+            {"EXPLORATION_SETTINGS", "Exploration & Waypoints"},
+            {"AUTO_REMOVE_DEATHPOINTS", "Delete Reached Deathpoints (Within 6 blocks)"},
+            {"ENLARGE_MINIMAP_TOGGLE", "Toggled Enlarged Minimap"},
+            {"INFO_SHOW_CHUNK_COORDS", "Show Chunk Coordinates"},
+            {"ALWAYS_SHOW_NAMETAGS", "Always Show Nametagged Entities"},
+            {"LABEL_BLOCK_LIGHT", "Block"},
+            {"LABEL_SKY_LIGHT", "Sky"},
+            {"LABEL_CHUNK", "Chunk"}
         };
         static const std::unordered_map<std::string, std::string> zhCN = {
             {"SEED_MAP_TITLE", "种子地图"},
@@ -1113,14 +1252,29 @@ namespace LanguageManager {
             {"MODERN_DEATH_MANAGER", "死亡记录"},
             {"DEATH_POINTS_TITLE", "死亡记录 (按 'I' 或 'Esc' 关闭)##Deaths"},
             {"DEATH_POINTS_EMPTY", "暂无死亡记录。"},
-            {"DEATH_POINTS_HINT", "死亡记录按世界保存，只能传送当前维度的记录。"},
+            {"DEATH_POINTS_HINT", "死亡记录按世界保存，支持跨维度传送。"},
             {"DEATH_POINT_TELEPORT", "传送"},
+            {"DEATH_POINT_LOCATE", "定位"},
             {"DEATH_POINT_DELETE", "删除"},
             {"DEATH_POINT_CREATE_WP", "转为路径点"},
             {"DEATH_POINT_WP_PREFIX", "死亡点"},
             {"MODERN_DIMENSION_MISMATCH", "不在当前维度"},
             {"OPEN_DEATH_MANAGER", "打开死亡记录"},
-            {"DEATH_POINT_ALREADY_CONVERTED", "已转为路径点"}
+            {"DEATH_POINT_ALREADY_CONVERTED", "已转为路径点"},
+            {"HOTKEY_ENLARGE_MINIMAP", "放大小地图"},
+            {"RADAR_SETTINGS", "雷达与实体设置"},
+            {"RADAR_HEIGHT_INDICATORS", "实体高度指示箭头 (▲/▼)"},
+            {"ENTITY_DEPTH", "显示实体深度暗化"},
+            {"ENTITY_HEIGHT_LIMIT", "实体垂直高度限制"},
+            {"ENTITY_HEIGHT_LIMIT_UNLIMITED", "不限"},
+            {"EXPLORATION_SETTINGS", "探索与路径点设置"},
+            {"AUTO_REMOVE_DEATHPOINTS", "删除到达过的死亡地点 (6方块内)"},
+            {"ENLARGE_MINIMAP_TOGGLE", "放大小地图键视为切换"},
+            {"INFO_SHOW_CHUNK_COORDS", "显示区块坐标与局部偏移"},
+            {"ALWAYS_SHOW_NAMETAGS", "始终显示已命名实体名称"},
+            {"LABEL_BLOCK_LIGHT", "方块"},
+            {"LABEL_SKY_LIGHT", "天空"},
+            {"LABEL_CHUNK", "区块"}
         };
         static const std::unordered_map<std::string, std::string> zhTW = {
             {"SEED_MAP_TITLE", "種子地圖"},
@@ -1217,14 +1371,29 @@ namespace LanguageManager {
             {"MODERN_DEATH_MANAGER", "死亡紀錄"},
             {"DEATH_POINTS_TITLE", "死亡紀錄 (按 'I' 或 'Esc' 關閉)##Deaths"},
             {"DEATH_POINTS_EMPTY", "暫無死亡紀錄。"},
-            {"DEATH_POINTS_HINT", "死亡紀錄按世界保存，只能傳送目前維度的紀錄。"},
+            {"DEATH_POINTS_HINT", "死亡紀錄按世界保存，支援跨維度傳送。"},
             {"DEATH_POINT_TELEPORT", "傳送"},
+            {"DEATH_POINT_LOCATE", "定位"},
             {"DEATH_POINT_DELETE", "刪除"},
             {"DEATH_POINT_CREATE_WP", "轉為路徑點"},
             {"DEATH_POINT_WP_PREFIX", "死亡點"},
             {"MODERN_DIMENSION_MISMATCH", "不在目前維度"},
             {"OPEN_DEATH_MANAGER", "開啟死亡紀錄"},
-            {"DEATH_POINT_ALREADY_CONVERTED", "已轉為路徑點"}
+            {"DEATH_POINT_ALREADY_CONVERTED", "已轉為路徑點"},
+            {"HOTKEY_ENLARGE_MINIMAP", "放大迷你地圖"},
+            {"RADAR_SETTINGS", "雷達與實體設定"},
+            {"RADAR_HEIGHT_INDICATORS", "實體高度指示箭頭 (▲/▼)"},
+            {"ENTITY_DEPTH", "顯示實體深度暗化"},
+            {"ENTITY_HEIGHT_LIMIT", "實体垂直高度限制"},
+            {"ENTITY_HEIGHT_LIMIT_UNLIMITED", "不限"},
+            {"EXPLORATION_SETTINGS", "探索與路徑點設定"},
+            {"AUTO_REMOVE_DEATHPOINTS", "刪除到達過的死亡地點 (6方塊內)"},
+            {"ENLARGE_MINIMAP_TOGGLE", "放大迷你地圖鍵視為切換"},
+            {"INFO_SHOW_CHUNK_COORDS", "顯示區塊座標與局部偏移"},
+            {"ALWAYS_SHOW_NAMETAGS", "始終顯示已命名實體名稱"},
+            {"LABEL_BLOCK_LIGHT", "方塊"},
+            {"LABEL_SKY_LIGHT", "天空"},
+            {"LABEL_CHUNK", "區塊"}
         };
 
         const auto* table = &en;

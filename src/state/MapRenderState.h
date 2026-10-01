@@ -4,6 +4,8 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <random>
+#include <algorithm>
 #include <mc/deps/core/math/Color.h>
 
 namespace MapRenderState {
@@ -16,6 +18,7 @@ namespace MapRenderState {
     inline bool bigMapShowEntities = false; // 全屏大地图生物头像显示开关 (直观图标按钮切换)
     inline bool bigMapShowMarkers = true;  // 全屏大地图标记显示开关 (路径点 + 死亡点，图标按钮切换，持久化)
     inline bool showChunkGrid = false;     // 区块网格显示开关 (小地图 + 大地图共用，图标按钮切换，持久化)
+    inline bool bigMapShowHoverBox = true; // 全屏大地图鼠标悬停区块选框显示开关 (持久化)
 
     // 当前玩家所处生物群系名称 (拆分为原始命名空间ID与本地化名称)
     inline std::string rawBiomeName = "minecraft:unknown";
@@ -99,21 +102,6 @@ namespace MapRenderState {
 
     inline void RestoreDimCamera(int targetDim, int fromDim, float smoothPX, float smoothPZ) {
         if (targetDim < 0 || targetDim >= 3) return;
-        // [下界/异界切主世界] 当位于下界（或末地）切换到主世界时，必须以出生点为中心
-        if ((fromDim == 1 || fromDim == 2) && targetDim == 0) {
-            int spX = 0, spZ = 0;
-            GetWorldSpawnCoords(spX, spZ);
-            float targetWx = (float)spX;
-            float targetWz = (float)spZ;
-            bigMapZoom = 3.0f;
-            bigMapOffsetX = (smoothPX - targetWx) * bigMapZoom;
-            bigMapOffsetZ = (smoothPZ - targetWz) * bigMapZoom;
-            dimCameraStates[0].centerWx = targetWx;
-            dimCameraStates[0].centerWz = targetWz;
-            dimCameraStates[0].zoom = bigMapZoom;
-            dimCameraStates[0].initialized = true;
-            return;
-        }
         if (dimCameraStates[targetDim].initialized) {
             bigMapZoom = dimCameraStates[targetDim].zoom;
             float targetWx = dimCameraStates[targetDim].centerWx;
@@ -124,14 +112,27 @@ namespace MapRenderState {
             bigMapZoom = 3.0f;
             float targetWx = 0.0f;
             float targetWz = 0.0f;
-            if (fromDim == 0 && targetDim == 1) {
-                targetWx = smoothPX / 8.0f;
-                targetWz = smoothPZ / 8.0f;
-            } else if (fromDim == 1 && targetDim == 0) {
-                int spX = 0, spZ = 0;
-                GetWorldSpawnCoords(spX, spZ);
-                targetWx = (float)spX;
-                targetWz = (float)spZ;
+            if (targetDim == currentDimensionId) {
+                targetWx = smoothPX;
+                targetWz = smoothPZ;
+            } else if (targetDim == 0) {
+                if (currentDimensionId == 1) {
+                    targetWx = smoothPX * 8.0f;
+                    targetWz = smoothPZ * 8.0f;
+                } else {
+                    int spX = 0, spZ = 0;
+                    GetWorldSpawnCoords(spX, spZ);
+                    targetWx = (float)spX;
+                    targetWz = (float)spZ;
+                }
+            } else if (targetDim == 1) {
+                if (currentDimensionId == 0) {
+                    targetWx = smoothPX / 8.0f;
+                    targetWz = smoothPZ / 8.0f;
+                } else {
+                    targetWx = 0.0f;
+                    targetWz = 0.0f;
+                }
             } else if (targetDim == 2) {
                 targetWx = 0.0f;
                 targetWz = 0.0f;
@@ -159,11 +160,17 @@ namespace MapRenderState {
             if (currentDimensionId == 0 && viewDim == 1) {
                 targetWx = smoothPX / 8.0f;
                 targetWz = smoothPZ / 8.0f;
-            } else if ((currentDimensionId == 1 || currentDimensionId == 2) && viewDim == 0) {
+            } else if (currentDimensionId == 1 && viewDim == 0) {
+                targetWx = smoothPX * 8.0f;
+                targetWz = smoothPZ * 8.0f;
+            } else if (viewDim == 0) {
                 int spX = 0, spZ = 0;
                 GetWorldSpawnCoords(spX, spZ);
                 targetWx = (float)spX;
                 targetWz = (float)spZ;
+            } else if (viewDim == 1) {
+                targetWx = 0.0f;
+                targetWz = 0.0f;
             } else if (viewDim == 2) {
                 targetWx = 0.0f;
                 targetWz = 0.0f;
@@ -171,6 +178,24 @@ namespace MapRenderState {
             bigMapOffsetX = (smoothPX - targetWx) * bigMapZoom;
             bigMapOffsetZ = (smoothPZ - targetWz) * bigMapZoom;
         }
+        SaveDimCamera(viewDim, smoothPX, smoothPZ);
+    }
+
+    inline void CenterBigMapOn(int targetDim, float targetWx, float targetWz, float smoothPX, float smoothPZ) {
+        if (targetDim < 0 || targetDim > 2) return;
+        int oldViewDim = GetEffectiveViewDimensionId();
+        if (oldViewDim != targetDim) {
+            SaveDimCamera(oldViewDim, smoothPX, smoothPZ);
+            clearGPUCache.store(true);
+        }
+        bigMapViewDimensionId = targetDim;
+        bigMapOffsetX = -(targetWx - smoothPX) * bigMapZoom;
+        bigMapOffsetZ = -(targetWz - smoothPZ) * bigMapZoom;
+        SaveDimCamera(targetDim, smoothPX, smoothPZ);
+        showBigMap = true;
+        hoverBiomeAlpha = 0.0f;
+        hoverBiomeTargetAlpha = 0.0f;
+        hoverBiomeHasValidResult = false;
     }
 
     // [新增] 路径点 UI 开启状态
@@ -260,6 +285,7 @@ namespace MapRenderState {
         Hotkey toggleMinimapRot  = { 0x4A, 0 }; // J: 切换小地图旋转
         Hotkey holdEntities      = { 0x09, 0 }; // Tab: 显示生物头像 (小地图/大地图)
         Hotkey toggleSeedMap     = { 0x4B, 0 }; // K: 切换种子全知地图
+        Hotkey enlargeMinimap    = { 0x58, 0 }; // X: 放大小地图 (默认 X 键，避免与原版 Z 键状态效果界面冲突)
 
         // 系统预设默认值 (单一来源，供"单行重置"与"全部重置"共用)
         static constexpr HotkeyBindings Defaults() {
@@ -271,7 +297,8 @@ namespace MapRenderState {
                 { 0x59, 0 },
                 { 0x4A, 0 },
                 { 0x09, 0 },
-                { 0x4B, 0 }
+                { 0x4B, 0 },
+                { 0x58, 0 }
             };
         }
     };
@@ -286,7 +313,17 @@ namespace MapRenderState {
     // [新增] 小地图偏移与位置设置
     inline float miniMapOffsetX = 0.0f; // 小地图 X 偏移
     inline float miniMapOffsetY = 0.0f; // 小地图 Y 偏移
-    inline bool showMiniMapPosSettings = false; // 小地图位置设置面板
+    inline bool showMiniMapPosSettings = false; // 小地图位置设置面板 (切换至小地图界面调整)
+    inline bool showMiniMapSettings = false;    // 小地图设置面板 (在大地图内渲染)
+
+    // [新增] 实体雷达高低差指示与探索增强配置
+    inline bool radarHeightIndicators = true;   // 实体雷达高低差指示箭头 (▲/▼)
+    inline bool entityDepth = true;             // 显示实体深度 (按相对高低差渐变暗化)
+    inline int  entityHeightLimit = 0;          // 实体垂直高度限制 (0=不限)
+    inline bool autoRemoveDeathpoints = true;   // 靠近6方块内自动清除死亡点
+    inline bool enlargeMinimapToggle = false;   // 放大小地图按键视为切换 (false=按住, true=切换)
+    inline std::atomic<bool> g_enlargeHeld{false}; // 放大小地图按住状态
+    inline bool g_enlargeToggled = false;       // 放大小地图切换状态
 
     // [传送状态机] 用于 UI 加载提示与异常反馈
     // Idle: 无传送 / Loading: 等待区块加载 / Validating: 验证地表 / Failed: 异常回退
@@ -301,7 +338,7 @@ namespace MapRenderState {
         bool isTeleportUIActive = (tp == (int)TeleportState::Loading || 
                                    tp == (int)TeleportState::Validating || 
                                    tp == (int)TeleportState::Failed);
-        return showBigMap || showWaypointUI || showDeathPointUI || showMiniMapPosSettings || showHotkeySettings || showCaveSettings ||
+        return showBigMap || showWaypointUI || showDeathPointUI || showMiniMapPosSettings || showMiniMapSettings || showHotkeySettings || showCaveSettings ||
                showExportPNGScreen || showSeedMap || isTeleportUIActive;
     }
 
@@ -363,6 +400,19 @@ namespace MapRenderState {
     inline float uiTextScale = 1.0f; // UI 文本缩放比例
     inline float miniMapScale = 1.0f; // 小地图本身大小缩放
     inline float miniMapZoomRadius = 50.0f; // 小地图可视范围（玩家周围方块半径，10-200）
+
+    // [小地图 HUD 实时信息栏配置]
+    inline bool infoShowCoords = true;       // 显示 XYZ 坐标 (第1项: 默认开)
+    inline bool infoShowNetherCoords = false; // 显示下界/主世界换算坐标 (第2项: 默认关)
+    inline bool infoShowFacing = false;       // 显示朝向与偏航角 (第3项: 默认关)
+    inline bool infoShowBiome = true;        // 显示当前生物群系 (第4项: 默认开)
+    inline bool infoShowTime = false;         // 显示游戏时间与现实时间 (第5项: 默认关)
+    inline bool infoShowLight = false;        // 显示方块光照等级 (默认关)
+    inline bool infoShowChunkCoords = false;  // 显示区块局部坐标与索引 (默认关)
+    inline bool alwaysShowNametags = true;    // 始终显示已命名实体名称 (默认开)
+    inline std::atomic<int> g_blockLight{-1}; // 当前方块光照 (0-15)
+    inline std::atomic<int> g_skyLight{-1};   // 当前天空光照 (0-15)
+    inline std::atomic<int> g_gameTimeTicks{-1}; // 游戏刻实时同步 (主线程 -> 渲染线程)
 
     // [关闭期安全标志] disable() 入口处置 true，所有钩子和后台线程在入口检查此标志并提前返回，
     // 防止进程退出阶段访问已释放的 D3D/ImGui 资源导致 0xC0000005 退出崩溃
