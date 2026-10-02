@@ -12,4 +12,5 @@ namespace LanguageManager {
     void LoadLanguage(const std::string& langCode);
     void ScanLanguages();
     const char* GetText(const std::string& key);
+    std::string GetEntityDisplayName(const std::string& typeName, const std::string& nameTag = "");
 }

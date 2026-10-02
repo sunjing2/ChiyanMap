@@ -1,4 +1,5 @@
 #include "state/WaypointManager.h"
+#include "state/LanguageManager.h"
 #include <fstream>
 #include <filesystem>
 #include <random>
@@ -80,6 +81,7 @@ namespace WaypointManager {
                 wp.enabled = item.value("enabled", true);
                 wp.dimId = item.value("dimId", dim); // 兼容旧存档
                 wp.pinned = item.value("pinned", false);
+                wp.isTemporary = item.value("isTemporary", false);
                 wp.folder = item.value("folder", "");
                 wp.createdAt = item.value("createdAt", (uint64_t)0);
                 wp.order = item.value("order", (int)g_waypoints.size());
@@ -112,6 +114,7 @@ namespace WaypointManager {
             obj["b"] = wp.b;
             obj["enabled"] = wp.enabled;
             obj["pinned"] = wp.pinned;
+            obj["isTemporary"] = wp.isTemporary;
             obj["folder"] = wp.folder;
             obj["createdAt"] = wp.createdAt;
             obj["order"] = wp.order;
@@ -312,6 +315,74 @@ namespace WaypointManager {
         }
         SaveWaypoints();
         return true;
+    }
+
+    std::string SetTemporaryWaypoint(int x, int y, int z, int dimId) {
+        int targetDim = (dimId >= 0 && dimId < 3) ? dimId : g_currentDim;
+        std::string resId;
+        bool found = false;
+        {
+            std::lock_guard<std::mutex> lock(g_wpMutex);
+            for (auto& wp : g_waypoints) {
+                if (wp.isTemporary) {
+                    wp.x = x;
+                    wp.y = y;
+                    wp.z = z;
+                    wp.dimId = targetDim;
+                    wp.enabled = true;
+                    wp.name = LanguageManager::GetText("TEMP_WAYPOINT_NAME");
+                    wp.createdAt = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    resId = wp.id;
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            Waypoint wp;
+            wp.id = GenerateID();
+            wp.name = LanguageManager::GetText("TEMP_WAYPOINT_NAME");
+            wp.x = x; wp.y = y; wp.z = z;
+            wp.r = 0.0f; wp.g = 0.9f; wp.b = 1.0f; // 鲜明醒目的天青色
+            wp.enabled = true;
+            wp.dimId = targetDim;
+            wp.pinned = false;
+            wp.isTemporary = true;
+            wp.folder = "";
+            wp.createdAt = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            {
+                std::lock_guard<std::mutex> lock(g_wpMutex);
+                wp.order = (int)g_waypoints.size();
+                g_waypoints.push_back(wp);
+            }
+            resId = wp.id;
+        }
+        SaveWaypoints();
+        return resId;
+    }
+
+    void ClearTemporaryWaypoint() {
+        bool changed = false;
+        {
+            std::lock_guard<std::mutex> lock(g_wpMutex);
+            auto it = std::remove_if(g_waypoints.begin(), g_waypoints.end(),
+                [](const Waypoint& w) { return w.isTemporary; });
+            if (it != g_waypoints.end()) {
+                g_waypoints.erase(it, g_waypoints.end());
+                changed = true;
+            }
+        }
+        if (changed) SaveWaypoints();
+    }
+
+    bool HasTemporaryWaypoint() {
+        std::lock_guard<std::mutex> lock(g_wpMutex);
+        for (const auto& wp : g_waypoints) {
+            if (wp.isTemporary) return true;
+        }
+        return false;
     }
 
     void SwapWaypointOrder(const std::string& id1, const std::string& id2) {

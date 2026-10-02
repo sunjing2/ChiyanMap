@@ -16,12 +16,13 @@ struct Waypoint {
     bool enabled;        // 是否在地图上显示
     int dimId;           // 维度: 0=主世界 1=下界 2=末地
     bool pinned = false; // 是否置顶
+    bool isTemporary = false; // 是否为临时路径点 (全局唯一，每次新建覆盖旧的)
     std::string folder = ""; // 所属文件夹（空表示未分类）
     uint64_t createdAt = 0;  // 创建时间戳（毫秒）
     int order = 0;           // 手动排序次序
 
     // 构造函数
-    Waypoint() : x(0), y(0), z(0), r(1.f), g(1.f), b(1.f), enabled(true), dimId(0), pinned(false), folder(""), createdAt(0), order(0) {}
+    Waypoint() : x(0), y(0), z(0), r(1.f), g(1.f), b(1.f), enabled(true), dimId(0), pinned(false), isTemporary(false), folder(""), createdAt(0), order(0) {}
 };
 
 namespace WaypointManager {
@@ -43,6 +44,11 @@ namespace WaypointManager {
     void ToggleWaypointPin(const std::string& id);
     void UpdateWaypoint(const std::string& id, const std::string& name, int x, int y, int z, float r, float g, float b, bool enabled, bool pinned = false, const std::string& folder = "");
     bool RestoreLastDeletedWaypoint();
+
+    // 临时路径点接口 (Xaero 核心特性：单例临时路径点，重复设置自动更新)
+    std::string SetTemporaryWaypoint(int x, int y, int z, int dimId = -1);
+    void ClearTemporaryWaypoint();
+    bool HasTemporaryWaypoint();
 
     // 手动排序接口
     void SwapWaypointOrder(const std::string& id1, const std::string& id2);

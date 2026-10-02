@@ -21,6 +21,42 @@ namespace LanguageManager {
 
     // 内置多语言字典兜底 (覆盖 16 种语言，彻底杜绝界面出现未翻译 raw key)
     static const std::unordered_map<std::string, std::unordered_map<std::string, std::string>> g_builtinTranslations = {
+        {"GLOBAL_UI_SCALE", {
+            {"zh_CN", "全局整体UI缩放"},
+            {"zh_TW", "全域整體UI縮放"},
+            {"en_US", "Global UI Scale"},
+            {"de",    "Globale UI-Skalierung"},
+            {"es",    "Escala global de la IU"},
+            {"fr",    "Échelle globale de l'interface"},
+            {"id",    "Skala UI Global"},
+            {"it",    "Scala interfaccia globale"},
+            {"ja",    "全体UIスケール"},
+            {"ko",    "전체 UI 배율"},
+            {"pt_BR", "Escala global da interface"},
+            {"ru",    "Глобальный масштаб интерфейса"},
+            {"th",    "มาตราส่วน UI ทั้งหมด"},
+            {"tr",    "Genel Arayüz Ölçeği"},
+            {"uk",    "Глобальний масштаб інтерфейсу"},
+            {"vi",    "Tỷ lệ giao diện người dùng chung"}
+        }},
+        {"RESET_OPTIMAL_SCALE", {
+            {"zh_CN", "重置为默认最佳缩放"},
+            {"zh_TW", "重設為預設最佳縮放"},
+            {"en_US", "Reset to default optimal scale"},
+            {"de",    "Auf optimale Standardskalierung zurücksetzen"},
+            {"es",    "Restablecer a la escala óptima predeterminada"},
+            {"fr",    "Rétablir l'échelle optimale par défaut"},
+            {"id",    "Atur ulang ke skala optimal default"},
+            {"it",    "Ripristina la scala ottimale predefinita"},
+            {"ja",    "デフォルトの推奨スケールにリセット"},
+            {"ko",    "기본 권장 배율로 초기화"},
+            {"pt_BR", "Redefinir para a escala ideal padrão"},
+            {"ru",    "Сбросить на оптимальный масштаб по умолчанию"},
+            {"th",    "รีเซ็ตเป็นขนาดที่เหมาะสมเริ่มต้น"},
+            {"tr",    "Varsayılan en uygun ölçeğe sıfırla"},
+            {"uk",    "Скинути до оптимального масштабу за замовчуванням"},
+            {"vi",    "Đặt lại về tỷ lệ tối ưu mặc định"}
+        }},
         {"DEATH_POINTS_HINT", {
             {"zh_CN", "死亡记录按世界保存，支持跨维度传送。"},
             {"zh_TW", "死亡紀錄按世界保存，支援跨維度傳送。"},
@@ -632,6 +668,1009 @@ namespace LanguageManager {
             {"tr",    "Ölüm Kayıtlarını Aç/Kapat"},
             {"uk",    "Перемкнути записи смертей"},
             {"vi",    "Bật/tắt Nhật ký Tử vong"}
+        }},
+        {"TERRAIN_SLOPES", {
+            {"zh_CN", "地形坡度阴影模式"},
+            {"zh_TW", "地形坡度陰影模式"},
+            {"en_US", "Terrain Slopes"},
+            {"de",    "Geländeneigung"},
+            {"es",    "Pendientes del terreno"},
+            {"fr",    "Pentes du terrain"},
+            {"id",    "Kemiringan Medan"},
+            {"it",    "Pendenze del terreno"},
+            {"ja",    "地形の傾斜シェーディング"},
+            {"ko",    "지형 경사 음영"},
+            {"pt_BR", "Declives do Terreno"},
+            {"ru",    "Тени склонов местности"},
+            {"th",    "ความลาดชันของภูมิประเทศ"},
+            {"tr",    "Arazi Eğimleri"},
+            {"uk",    "Тіні схилів місцевості"},
+            {"vi",    "Độ dốc địa hình"}
+        }},
+        {"TERRAIN_SLOPES_DEFAULT_2D", {
+            {"zh_CN", "默认 2D"},
+            {"zh_TW", "預設 2D"},
+            {"en_US", "Default 2D"}
+        }},
+        {"TERRAIN_SLOPES_LEGACY", {
+            {"zh_CN", "旧版 Legacy"},
+            {"zh_TW", "舊版 Legacy"},
+            {"en_US", "Legacy"}
+        }},
+        {"TERRAIN_SLOPES_DEFAULT_3D", {
+            {"zh_CN", "默认 3D 浮雕"},
+            {"zh_TW", "預設 3D 浮雕"},
+            {"en_US", "Default 3D"}
+        }},
+        {"TERRAIN_DEPTH", {
+            {"zh_CN", "地形纵深阴影 (Terrain Depth)"},
+            {"zh_TW", "地形縱深陰影 (Terrain Depth)"},
+            {"en_US", "Terrain Depth"}
+        }},
+        {"ADJUST_HEIGHT_SHORT_BLOCKS", {
+            {"zh_CN", "修正矮小方块阴影 (地毯/雪/睡莲)"},
+            {"zh_TW", "修正矮小方塊陰影 (地毯/雪/睡蓮)"},
+            {"en_US", "Adjust Y For Short Blocks"}
+        }},
+        {"SHOW_FOOTSTEPS", {
+            {"zh_CN", "显示玩家行进足迹 (Footsteps)"},
+            {"zh_TW", "顯示玩家行進足跡 (Footsteps)"},
+            {"en_US", "Show Footsteps"}
+        }},
+        {"ARROW_COLOR", {
+            {"zh_CN", "玩家箭头颜色"},
+            {"zh_TW", "玩家箭頭顏色"},
+            {"en_US", "Player Arrow Color"}
+        }},
+        {"SHOW_ZOOM_BUTTONS", {
+            {"zh_CN", "大地图屏幕缩放按钮 (+ / -)"},
+            {"zh_TW", "大地圖螢幕縮放按鈕 (+ / -)"},
+            {"en_US", "Zoom Buttons"}
+        }},
+        {"SHARE_LOCATION_CHAT", {
+            {"zh_CN", "在聊天栏分享当前坐标"},
+            {"zh_TW", "在聊天欄分享目前座標"},
+            {"en_US", "Share Location in Chat"}
+        }},
+        {"COLOR_RED", {
+            {"zh_CN", "红色"}, {"zh_TW", "紅色"}, {"en_US", "Red"}
+        }},
+        {"COLOR_WHITE", {
+            {"zh_CN", "白色"}, {"zh_TW", "白色"}, {"en_US", "White"}
+        }},
+        {"COLOR_GREEN", {
+            {"zh_CN", "绿色"}, {"zh_TW", "綠色"}, {"en_US", "Green"}
+        }},
+        {"COLOR_BLUE", {
+            {"zh_CN", "蓝色"}, {"zh_TW", "藍色"}, {"en_US", "Blue"}
+        }},
+        {"COLOR_YELLOW", {
+            {"zh_CN", "黄色"}, {"zh_TW", "黃色"}, {"en_US", "Yellow"}
+        }},
+        {"COLOR_PURPLE", {
+            {"zh_CN", "紫色"}, {"zh_TW", "紫色"}, {"en_US", "Purple"}
+        }},
+        {"COLOR_BLACK", {
+            {"zh_CN", "黑色"}, {"zh_TW", "黑色"}, {"en_US", "Black"}
+        }},
+        {"COLOR_CYAN", {
+            {"zh_CN", "青色"}, {"zh_TW", "青色"}, {"en_US", "Cyan"}
+        }},
+        {"MAP_SHADING_SETTINGS", {
+            {"zh_CN", "地图光影与地形渲染设置"},
+            {"zh_TW", "地圖光影與地形渲染設定"},
+            {"en_US", "Map Shading & Terrain Settings"}
+        }},
+        {"BIGMAP_SETTINGS", {
+            {"zh_CN", "全屏大地图设置"},
+            {"zh_TW", "全螢幕大地圖設定"},
+            {"en_US", "World Map Settings"},
+            {"de",    "Weltkarten-Einstellungen"},
+            {"es",    "Ajustes del mapa mundial"},
+            {"fr",    "Paramètres de la carte du monde"},
+            {"id",    "Pengaturan Peta Dunia"},
+            {"it",    "Impostazioni mappa del mondo"},
+            {"ja",    "ワールドマップ設定"},
+            {"ko",    "월드맵 설정"},
+            {"pt_BR", "Configurações do Mapa-Múndi"},
+            {"ru",    "Настройки карты мира"},
+            {"th",    "การตั้งค่าแผนที่โลก"},
+            {"tr",    "Dünya Haritası Ayarları"},
+            {"uk",    "Налаштування мапи світу"},
+            {"vi",    "Cài đặt bản đồ thế giới"}
+        }},
+        {"BIGMAP_DISPLAY_SETTINGS", {
+            {"zh_CN", "大地图显示选项"},
+            {"zh_TW", "大地圖顯示選項"},
+            {"en_US", "World Map Display Options"},
+            {"de",    "Weltkarten-Anzeigeoptionen"},
+            {"es",    "Opciones de visualización del mapa mundial"},
+            {"fr",    "Options d'affichage de la carte du monde"},
+            {"id",    "Opsi Tampilan Peta Dunia"},
+            {"it",    "Opzioni di visualizzazione mappa del mondo"},
+            {"ja",    "ワールドマップ表示設定"},
+            {"ko",    "월드맵 표시 옵션"},
+            {"pt_BR", "Opções de Exibição do Mapa-Múndi"},
+            {"ru",    "Параметры отображения карты мира"},
+            {"th",    "ตัวเลือกการแสดงผลแผนที่โลก"},
+            {"tr",    "Dünya Haritası Görüntüleme Seçenekleri"},
+            {"uk",    "Параметри відображення мапи світу"},
+            {"vi",    "Tùy chọn hiển thị bản đồ thế giới"}
+        }},
+        {"SHOW_BIGMAP_ENTITIES", {
+            {"zh_CN", "显示生物与玩家头像"},
+            {"zh_TW", "顯示生物與玩家頭像"},
+            {"en_US", "Show Entity Heads"},
+            {"de",    "Entity-Köpfe anzeigen"},
+            {"es",    "Mostrar cabezas de entidades"},
+            {"fr",    "Afficher les têtes d'entités"},
+            {"id",    "Tampilkan Kepala Entitas"},
+            {"it",    "Mostra teste entità"},
+            {"ja",    "エンティティの頭部を表示"},
+            {"ko",    "엔티티 머리 표시"},
+            {"pt_BR", "Mostrar Cabeças de Entidades"},
+            {"ru",    "Показывать головы сущностей"},
+            {"th",    "แสดงหัวเอนทิตี"},
+            {"tr",    "Varlık Kafalarını Göster"},
+            {"uk",    "Показувати голови сутностей"},
+            {"vi",    "Hiển thị đầu thực thể"}
+        }},
+        {"SHOW_BIGMAP_MARKERS", {
+            {"zh_CN", "显示路径点与地图标记"},
+            {"zh_TW", "顯示路徑點與地圖標記"},
+            {"en_US", "Show Markers & Waypoints"},
+            {"de",    "Markierungen & Wegpunkte anzeigen"},
+            {"es",    "Mostrar marcadores y puntos de ruta"},
+            {"fr",    "Afficher les marqueurs et points de cheminement"},
+            {"id",    "Tampilkan Penanda & Titik Arah"},
+            {"it",    "Mostra marcatori e waypoint"},
+            {"ja",    "マーカーとウェイポイントを表示"},
+            {"ko",    "마커 및 웨이포인트 표시"},
+            {"pt_BR", "Mostrar Marcadores e Pontos de Referência"},
+            {"ru",    "Показывать метки и путевые точки"},
+            {"th",    "แสดงเครื่องหมายและจุดอ้างอิง"},
+            {"tr",    "İşaretçileri ve Yol Noktalarını Göster"},
+            {"uk",    "Показувати мітки та шляхові точки"},
+            {"vi",    "Hiển thị điểm đánh dấu & điểm tham chiếu"}
+        }},
+        {"SHOW_CHUNK_GRID", {
+            {"zh_CN", "显示区块网格"},
+            {"zh_TW", "顯示區塊網格"},
+            {"en_US", "Show Chunk Grid"},
+            {"de",    "Chunk-Gitter anzeigen"},
+            {"es",    "Mostrar cuadrícula de chunks"},
+            {"fr",    "Afficher la grille de tronçons"},
+            {"id",    "Tampilkan Kisi Chunk"},
+            {"it",    "Mostra griglia chunk"},
+            {"ja",    "チャンクグリッドを表示"},
+            {"ko",    "청크 격자 표시"},
+            {"pt_BR", "Mostrar Grade de Chunks"},
+            {"ru",    "Показывать сетку чанков"},
+            {"th",    "แสดงตารางชังก์"},
+            {"tr",    "Chunk Izgarasını Göster"},
+            {"uk",    "Показувати сітку чанків"},
+            {"vi",    "Hiển thị lưới chunk"}
+        }},
+        {"CHAT_SHARE_LOCATION", {
+            {"zh_CN", "地图坐标: X: %d, Y: %d, Z: %d (%s)"},
+            {"zh_TW", "地圖座標: X: %d, Y: %d, Z: %d (%s)"},
+            {"en_US", "Map Location: X: %d, Y: %d, Z: %d (%s)"},
+            {"de",    "Karten-Koordinaten: X: %d, Y: %d, Z: %d (%s)"},
+            {"es",    "Ubicación en el mapa: X: %d, Y: %d, Z: %d (%s)"},
+            {"fr",    "Emplacement sur la carte : X: %d, Y: %d, Z: %d (%s)"},
+            {"id",    "Lokasi Peta: X: %d, Y: %d, Z: %d (%s)"},
+            {"it",    "Posizione sulla mappa: X: %d, Y: %d, Z: %d (%s)"},
+            {"ja",    "マップ座標: X: %d, Y: %d, Z: %d (%s)"},
+            {"ko",    "지도 위치: X: %d, Y: %d, Z: %d (%s)"},
+            {"pt_BR", "Localização no mapa: X: %d, Y: %d, Z: %d (%s)"},
+            {"ru",    "Координаты на карте: X: %d, Y: %d, Z: %d (%s)"},
+            {"th",    "พิกัดบนแผนที่: X: %d, Y: %d, Z: %d (%s)"},
+            {"tr",    "Harita Konumu: X: %d, Y: %d, Z: %d (%s)"},
+            {"uk",    "Координати на мапі: X: %d, Y: %d, Z: %d (%s)"},
+            {"vi",    "Tọa độ bản đồ: X: %d, Y: %d, Z: %d (%s)"}
+        }},
+        {"CHAT_SHARE_WAYPOINT", {
+            {"zh_CN", "路径点 '%s': X: %d, Y: %d, Z: %d"},
+            {"zh_TW", "路徑點 '%s': X: %d, Y: %d, Z: %d"},
+            {"en_US", "Waypoint '%s' at X: %d, Y: %d, Z: %d"},
+            {"de",    "Wegpunkt '%s': X: %d, Y: %d, Z: %d"},
+            {"es",    "Marcador '%s': X: %d, Y: %d, Z: %d"},
+            {"fr",    "Repère '%s' : X: %d, Y: %d, Z: %d"},
+            {"id",    "Titik Jalan '%s': X: %d, Y: %d, Z: %d"},
+            {"it",    "Waypoint '%s': X: %d, Y: %d, Z: %d"},
+            {"ja",    "ウェイポイント '%s': X: %d, Y: %d, Z: %d"},
+            {"ko",    "웨이포인트 '%s': X: %d, Y: %d, Z: %d"},
+            {"pt_BR", "Marcador '%s': X: %d, Y: %d, Z: %d"},
+            {"ru",    "Путевая точка '%s': X: %d, Y: %d, Z: %d"},
+            {"th",    "จุดอ้างอิง '%s': X: %d, Y: %d, Z: %d"},
+            {"tr",    "İşaret Noktası '%s': X: %d, Y: %d, Z: %d"},
+            {"uk",    "Шляхова точка '%s': X: %d, Y: %d, Z: %d"},
+            {"vi",    "Điểm đường '%s': X: %d, Y: %d, Z: %d"}
+        }},
+        {"CHAT_SHARE_DEATHPOINT", {
+            {"zh_CN", "死亡地点: X: %d, Y: %d, Z: %d (%s)"},
+            {"zh_TW", "死亡地點: X: %d, Y: %d, Z: %d (%s)"},
+            {"en_US", "Death Point at X: %d, Y: %d, Z: %d (%s)"},
+            {"de",    "Todespunkt: X: %d, Y: %d, Z: %d (%s)"},
+            {"es",    "Punto de muerte: X: %d, Y: %d, Z: %d (%s)"},
+            {"fr",    "Point de mort : X: %d, Y: %d, Z: %d (%s)"},
+            {"id",    "Titik Kematian: X: %d, Y: %d, Z: %d (%s)"},
+            {"it",    "Punto di morte: X: %d, Y: %d, Z: %d (%s)"},
+            {"ja",    "死亡地点: X: %d, Y: %d, Z: %d (%s)"},
+            {"ko",    "사망 위치: X: %d, Y: %d, Z: %d (%s)"},
+            {"pt_BR", "Ponto de morte: X: %d, Y: %d, Z: %d (%s)"},
+            {"ru",    "Точка смерти: X: %d, Y: %d, Z: %d (%s)"},
+            {"th",    "จุดตาย: X: %d, Y: %d, Z: %d (%s)"},
+            {"tr",    "Ölüm Noktası: X: %d, Y: %d, Z: %d (%s)"},
+            {"uk",    "Точка смерті: X: %d, Y: %d, Z: %d (%s)"},
+            {"vi",    "Điểm tử vong: X: %d, Y: %d, Z: %d (%s)"}
+        }},
+        {"DIM_OVERWORLD", {
+            {"zh_CN", "主世界"},
+            {"zh_TW", "主世界"},
+            {"en_US", "Overworld"},
+            {"de",    "Oberwelt"},
+            {"es",    "Mundo superior"},
+            {"fr",    "Surface"},
+            {"id",    "Dunia Luar"},
+            {"it",    "Mondo principale"},
+            {"ja",    "オーバーワールド"},
+            {"ko",    "오버월드"},
+            {"pt_BR", "Superfície"},
+            {"ru",    "Верхний мир"},
+            {"th",    "โอเวอร์เวิลด์"},
+            {"tr",    "Üst Dünya"},
+            {"uk",    "Звичайний світ"},
+            {"vi",    "Thế giới bề mặt"}
+        }},
+        {"DIM_NETHER", {
+            {"zh_CN", "下界"},
+            {"zh_TW", "地獄"},
+            {"en_US", "Nether"},
+            {"de",    "Nether"},
+            {"es",    "Nether"},
+            {"fr",    "Nether"},
+            {"id",    "Nether"},
+            {"it",    "Nether"},
+            {"ja",    "ネザー"},
+            {"ko",    "네더"},
+            {"pt_BR", "Nether"},
+            {"ru",    "Нижний мир"},
+            {"th",    "เนเธอร์"},
+            {"tr",    "Nether"},
+            {"uk",    "Незер"},
+            {"vi",    "Nether"}
+        }},
+        {"DIM_END", {
+            {"zh_CN", "末地"},
+            {"zh_TW", "終界"},
+            {"en_US", "The End"},
+            {"de",    "Das Ende"},
+            {"es",    "El End"},
+            {"fr",    "L'End"},
+            {"id",    "The End"},
+            {"it",    "L'End"},
+            {"ja",    "ジ・エンド"},
+            {"ko",    "엔드"},
+            {"pt_BR", "O End"},
+            {"ru",    "Край"},
+            {"th",    "ดิเอนด์"},
+            {"tr",    "Son"},
+            {"uk",    "Край"},
+            {"vi",    "The End"}
+        }},
+        {"DIM_UNKNOWN", {
+            {"zh_CN", "未知维度"},
+            {"zh_TW", "未知維度"},
+            {"en_US", "Unknown Dimension"},
+            {"de",    "Unbekannte Dimension"},
+            {"es",    "Dimensión desconocida"},
+            {"fr",    "Dimension inconnue"},
+            {"id",    "Dimensi Tidak Dikenal"},
+            {"it",    "Dimensione sconosciuta"},
+            {"ja",    "不明なディメンション"},
+            {"ko",    "알 수 없는 차원"},
+            {"pt_BR", "Dimensão Desconhecida"},
+            {"ru",    "Неизвестное измерение"},
+            {"th",    "มิติที่ไม่รู้จัก"},
+            {"tr",    "Bilinmeyen Boyut"},
+            {"uk",    "Невідомий вимір"},
+            {"vi",    "Không gian không xác định"}
+        }},
+        {"RESET", {
+            {"zh_CN", "重置为默认值"},
+            {"zh_TW", "重設為預設值"},
+            {"en_US", "Reset to default"},
+            {"de",    "Auf Standard zurücksetzen"},
+            {"es",    "Restablecer a predeterminado"},
+            {"fr",    "Rétablir les valeurs par défaut"},
+            {"id",    "Atur Ulang ke Default"},
+            {"it",    "Ripristina ai valori predefiniti"},
+            {"ja",    "デフォルトにリセット"},
+            {"ko",    "기본값으로 재설정"},
+            {"pt_BR", "Redefinir para o padrão"},
+            {"ru",    "Сбросить по умолчанию"},
+            {"th",    "รีเซ็ตเป็นค่าเริ่มต้น"},
+            {"tr",    "Varsayılana Sıfırla"},
+            {"uk",    "Скинути за замовчуванням"},
+            {"vi",    "Đặt lại về mặc định"}
+        }},
+        {"DISABLE_WP", {
+            {"zh_CN", "禁用路径点"},
+            {"zh_TW", "停用路徑點"},
+            {"en_US", "Disable Waypoint"},
+            {"de",    "Wegpunkt deaktivieren"},
+            {"es",    "Desactivar punto de referencia"},
+            {"fr",    "Désactiver le point de passage"},
+            {"id",    "Nonaktifkan Titik Arah"},
+            {"it",    "Disattiva punto di passaggio"},
+            {"ja",    "ウェイポイントを無効化"},
+            {"ko",    "웨이포인트 비활성화"},
+            {"pt_BR", "Desativar Ponto de Passagem"},
+            {"ru",    "Отключить метку"},
+            {"th",    "ปิดใช้งานจุดทาง"},
+            {"tr",    "Yol Noktasını Devre Dışı Bırak"},
+            {"uk",    "Вимкнути мітку"},
+            {"vi",    "Vô hiệu hóa điểm tham chiếu"}
+        }},
+        {"ENABLE_WP", {
+            {"zh_CN", "启用路径点"},
+            {"zh_TW", "啟用路徑點"},
+            {"en_US", "Enable Waypoint"},
+            {"de",    "Wegpunkt aktivieren"},
+            {"es",    "Activar punto de referencia"},
+            {"fr",    "Activer le point de passage"},
+            {"id",    "Aktifkan Titik Arah"},
+            {"it",    "Attiva punto di passaggio"},
+            {"ja",    "ウェイポイントを有効化"},
+            {"ko",    "웨이포인트 활성화"},
+            {"pt_BR", "Ativar Ponto de Passagem"},
+            {"ru",    "Включить метку"},
+            {"th",    "เปิดใช้งานจุดทาง"},
+            {"tr",    "Yol Noktasını Etkinleştir"},
+            {"uk",    "Увімкнути мітку"},
+            {"vi",    "Kích hoạt điểm tham chiếu"}
+        }},
+        {"SHOW_DISABLED_WAYPOINTS", {
+            {"zh_CN", "显示已禁用的路径点 (半透明)"},
+            {"zh_TW", "顯示已停用的路徑點 (半透明)"},
+            {"en_US", "Show Disabled Waypoints (Translucent)"},
+            {"de",    "Deaktivierte Wegpunkte anzeigen"},
+            {"es",    "Mostrar puntos desactivados"},
+            {"fr",    "Afficher les points désactivés"},
+            {"id",    "Tampilkan Titik Arah Nonaktif"},
+            {"it",    "Mostra punti disattivati"},
+            {"ja",    "無効化されたウェイポイントを表示（半透明）"},
+            {"ko",    "비활성화된 웨이포인트 표시 (반투명)"},
+            {"pt_BR", "Mostrar Pontos Desativados"},
+            {"ru",    "Показывать отключенные метки"},
+            {"th",    "แสดงจุดทางที่ปิดใช้งาน"},
+            {"tr",    "Devre Dışı Bırakılan Noktaları Göster"},
+            {"uk",    "Показувати вимкнені мітки"},
+            {"vi",    "Hiện điểm tham chiếu bị vô hiệu"}
+        }},
+        {"DISABLED_TAG", {
+            {"zh_CN", "已禁用"},
+            {"zh_TW", "已停用"},
+            {"en_US", "Disabled"},
+            {"de",    "Deaktiviert"},
+            {"es",    "Desactivado"},
+            {"fr",    "Désactivé"},
+            {"id",    "Dinonaktifkan"},
+            {"it",    "Disattivato"},
+            {"ja",    "無効"},
+            {"ko",    "비활성화됨"},
+            {"pt_BR", "Desativado"},
+            {"ru",    "Отключено"},
+            {"th",    "ปิดใช้งาน"},
+            {"tr",    "Devre Dışı"},
+            {"uk",    "Вимкнено"},
+            {"vi",    "Đã tắt"}
+        }},
+        {"TELEPORT_TO_PLAYER", {
+            {"zh_CN", "传送到该玩家"},
+            {"zh_TW", "傳送到該玩家"},
+            {"en_US", "Teleport to Player"},
+            {"de",    "Zu Spieler teleportieren"},
+            {"es",    "Teletransportarse al jugador"},
+            {"fr",    "Se téléporter au joueur"},
+            {"id",    "Teleportasi ke Pemain"},
+            {"it",    "Teletrasportati al giocatore"},
+            {"ja",    "プレイヤーへテレポート"},
+            {"ko",    "플레이어에게 텔레포트"},
+            {"pt_BR", "Teleportar para o Jogador"},
+            {"ru",    "Телепортироваться к игроку"},
+            {"th",    "เทเลพอร์ตไปยังผู้เล่น"},
+            {"tr",    "Oyuncuya Işınlan"},
+            {"uk",    "Телепортуватися до гравця"},
+            {"vi",    "Dịch chuyển đến người chơi"}
+        }},
+        {"TELEPORT_TO_ENTITY", {
+            {"zh_CN", "传送到该位置"},
+            {"zh_TW", "傳送到該位置"},
+            {"en_US", "Teleport to Entity Position"},
+            {"de",    "Zu Entity-Position teleportieren"},
+            {"es",    "Teletransportarse a la entidad"},
+            {"fr",    "Se téléporter à l'entité"},
+            {"id",    "Teleportasi ke Posisi Entitas"},
+            {"it",    "Teletrasportati alla posizione dell'entità"},
+            {"ja",    "エンティティの位置へテレポート"},
+            {"ko",    "엔티티 위치로 텔레포트"},
+            {"pt_BR", "Teleportar para a Entidade"},
+            {"ru",    "Телепортироваться к сущности"},
+            {"th",    "เทเลพอร์ตไปยังตำแหน่งเอนทิตี"},
+            {"tr",    "Varlık Konumuna Işınlan"},
+            {"uk",    "Телепортуватися до сутності"},
+            {"vi",    "Dịch chuyển đến vị trí thực thể"}
+        }},
+        {"RADAR_CAT_PLAYER", {
+            {"zh_CN", "玩家"},
+            {"zh_TW", "玩家"},
+            {"en_US", "Player"},
+            {"de",    "Spieler"},
+            {"es",    "Jugador"},
+            {"fr",    "Joueur"},
+            {"id",    "Pemain"},
+            {"it",    "Giocatore"},
+            {"ja",    "プレイヤー"},
+            {"ko",    "플레이어"},
+            {"pt_BR", "Jogador"},
+            {"ru",    "Игрок"},
+            {"th",    "ผู้เล่น"},
+            {"tr",    "Oyuncu"},
+            {"uk",    "Гравець"},
+            {"vi",    "Người chơi"}
+        }},
+        {"RADAR_CAT_HOSTILE", {
+            {"zh_CN", "敌对生物"},
+            {"zh_TW", "敵對生物"},
+            {"en_US", "Hostile Mob"},
+            {"de",    "Feindliche Kreatur"},
+            {"es",    "Criatura hostil"},
+            {"fr",    "Créature hostile"},
+            {"id",    "Mob Bermusuhan"},
+            {"it",    "Creatura ostile"},
+            {"ja",    "敵対モブ"},
+            {"ko",    "적대적 몹"},
+            {"pt_BR", "Monstro Hostil"},
+            {"ru",    "Враждебный моб"},
+            {"th",    "ม็อบศัตรู"},
+            {"tr",    "Düşman Yaratık"},
+            {"uk",    "Ворожий моб"},
+            {"vi",    "Quái vật thù địch"}
+        }},
+        {"RADAR_CAT_FRIENDLY", {
+            {"zh_CN", "友好生物"},
+            {"zh_TW", "友好生物"},
+            {"en_US", "Friendly Mob"},
+            {"de",    "Friedliche Kreatur"},
+            {"es",    "Criatura pacífica"},
+            {"fr",    "Créature amicale"},
+            {"id",    "Mob Bersahabat"},
+            {"it",    "Creatura amichevole"},
+            {"ja",    "友好モブ"},
+            {"ko",    "우호적 몹"},
+            {"pt_BR", "Criatura Passiva"},
+            {"ru",    "Дружелюбный моб"},
+            {"th",    "ม็อบเป็นมิตร"},
+            {"tr",    "Dost Yaratık"},
+            {"uk",    "Дружній моб"},
+            {"vi",    "Sinh vật thân thiện"}
+        }},
+        {"RADAR_CAT_ITEM", {
+            {"zh_CN", "掉落物与载具"},
+            {"zh_TW", "掉落物與載具"},
+            {"en_US", "Item & Vehicle"},
+            {"de",    "Gegenstand & Fahrzeug"},
+            {"es",    "Objeto y vehículo"},
+            {"fr",    "Objet et véhicule"},
+            {"id",    "Item & Kendaraan"},
+            {"it",    "Oggetto e veicolo"},
+            {"ja",    "アイテム・乗り物"},
+            {"ko",    "아이템 및 탈것"},
+            {"pt_BR", "Item e Veículo"},
+            {"ru",    "Предмет и транспорт"},
+            {"th",    "ไอเทมและยานพาหนะ"},
+            {"tr",    "Eşya ve Araç"},
+            {"uk",    "Предмет і транспорт"},
+            {"vi",    "Vật phẩm & Phương tiện"}
+        }},
+        {"SHARE_PLAYER_LOCATION", {
+            {"zh_CN", "我找到了玩家 %s 的坐标: [%d, %d, %d] (%s)"},
+            {"zh_TW", "我找到了玩家 %s 的座標: [%d, %d, %d] (%s)"},
+            {"en_US", "I found player %s at: [%d, %d, %d] (%s)"},
+            {"de",    "Ich habe Spieler %s gefunden bei: [%d, %d, %d] (%s)"},
+            {"es",    "Encontré al jugador %s en: [%d, %d, %d] (%s)"},
+            {"fr",    "J'ai trouvé le joueur %s à: [%d, %d, %d] (%s)"},
+            {"id",    "Saya menemukan pemain %s di: [%d, %d, %d] (%s)"},
+            {"it",    "Ho trovato il giocatore %s a: [%d, %d, %d] (%s)"},
+            {"ja",    "プレイヤー %s の座標を見つけました: [%d, %d, %d] (%s)"},
+            {"ko",    "플레이어 %s 의 좌표를 찾았습니다: [%d, %d, %d] (%s)"},
+            {"pt_BR", "Encontrei o jogador %s em: [%d, %d, %d] (%s)"},
+            {"ru",    "Я нашел игрока %s по координатам: [%d, %d, %d] (%s)"},
+            {"th",    "ฉันพบผู้เล่น %s ที่: [%d, %d, %d] (%s)"},
+            {"tr",    "%s adlı oyuncunun konumunu buldum: [%d, %d, %d] (%s)"},
+            {"uk",    "Я знайшов гравця %s за координатами: [%d, %d, %d] (%s)"},
+            {"vi",    "Tôi đã tìm thấy người chơi %s tại: [%d, %d, %d] (%s)"}
+        }},
+        {"RADAR_CATEGORIES", {
+            {"zh_CN", "实体雷达分类过滤"},
+            {"zh_TW", "實體雷達分類過濾"},
+            {"en_US", "Entity Radar Categories"},
+            {"de",    "Radar-Kategorien"},
+            {"es",    "Categorías de radar"},
+            {"fr",    "Catégories du radar"},
+            {"id",    "Kategori Radar Entitas"},
+            {"it",    "Categorie radar entità"},
+            {"ja",    "エンティティレーダー分類"},
+            {"ko",    "엔티티 레이더 범주"},
+            {"pt_BR", "Categorias do Radar de Entidades"},
+            {"ru",    "Категории радара сущностей"},
+            {"th",    "หมวดหมู่เรดาร์เอนทิตี"},
+            {"tr",    "Varlık Radarı Kategorileri"},
+            {"uk",    "Категорії радара сутностей"},
+            {"vi",    "Danh mục radar thực thể"}
+        }},
+        {"RADAR_SHOW_PLAYERS", {
+            {"zh_CN", "显示玩家"},
+            {"zh_TW", "顯示玩家"},
+            {"en_US", "Show Players"},
+            {"de",    "Spieler anzeigen"},
+            {"es",    "Mostrar jugadores"},
+            {"fr",    "Afficher les joueurs"},
+            {"id",    "Tampilkan Pemain"},
+            {"it",    "Mostra giocatori"},
+            {"ja",    "プレイヤーを表示"},
+            {"ko",    "플레이어 표시"},
+            {"pt_BR", "Mostrar Jogadores"},
+            {"ru",    "Показывать игроков"},
+            {"th",    "แสดงผู้เล่น"},
+            {"tr",    "Oyuncuları Göster"},
+            {"uk",    "Показувати гравців"},
+            {"vi",    "Hiện người chơi"}
+        }},
+        {"RADAR_SHOW_HOSTILE", {
+            {"zh_CN", "显示敌对生物"},
+            {"zh_TW", "顯示敵對生物"},
+            {"en_US", "Show Hostile Mobs"},
+            {"de",    "Feindliche Mobs anzeigen"},
+            {"es",    "Mostrar criaturas hostiles"},
+            {"fr",    "Afficher les créatures hostiles"},
+            {"id",    "Tampilkan Monster Musuh"},
+            {"it",    "Mostra mob ostili"},
+            {"ja",    "敵対的生物を表示"},
+            {"ko",    "적대적 몹 표시"},
+            {"pt_BR", "Mostrar Monstros Hostis"},
+            {"ru",    "Показывать враждебных мобов"},
+            {"th",    "แสดงม็อบศัตรู"},
+            {"tr",    "Düşman Canavarları Göster"},
+            {"uk",    "Показувати ворожих мобів"},
+            {"vi",    "Hiện sinh vật thù địch"}
+        }},
+        {"RADAR_SHOW_FRIENDLY", {
+            {"zh_CN", "显示友好生物"},
+            {"zh_TW", "顯示友好生物"},
+            {"en_US", "Show Friendly Mobs"},
+            {"de",    "Friedliche Mobs anzeigen"},
+            {"es",    "Mostrar criaturas pacíficas"},
+            {"fr",    "Afficher les créatures pacifiques"},
+            {"id",    "Tampilkan Hewan Bersahabat"},
+            {"it",    "Mostra mob pacifici"},
+            {"ja",    "友好・中立生物を表示"},
+            {"ko",    "우호적 몹 표시"},
+            {"pt_BR", "Mostrar Criaturas Amigáveis"},
+            {"ru",    "Показывать мирных мобов"},
+            {"th",    "แสดงม็อบที่เป็นมิตร"},
+            {"tr",    "Dost Canlıları Göster"},
+            {"uk",    "Показувати дружніх мобів"},
+            {"vi",    "Hiện sinh vật thân thiện"}
+        }},
+        {"RADAR_SHOW_ITEMS", {
+            {"zh_CN", "显示掉落物与载具"},
+            {"zh_TW", "顯示掉落物與載具"},
+            {"en_US", "Show Items & Vehicles"},
+            {"de",    "Gegenstände & Fahrzeuge anzeigen"},
+            {"es",    "Mostrar objetos y vehículos"},
+            {"fr",    "Afficher les objets & véhicules"},
+            {"id",    "Tampilkan Item & Kendaraan"},
+            {"it",    "Mostra oggetti e veicoli"},
+            {"ja",    "ドロップアイテムと乗り物を表示"},
+            {"ko",    "아이템 및 탈것 표시"},
+            {"pt_BR", "Mostrar Itens e Veículos"},
+            {"ru",    "Показывать предметы и транспорт"},
+            {"th",    "แสดงไอเทมและยานพาหนะ"},
+            {"tr",    "Eşyaları ve Araçları Göster"},
+            {"uk",    "Показувати предмети та транспорт"},
+            {"vi",    "Hiện vật phẩm & phương tiện"}
+        }},
+        {"SET_TEMP_WAYPOINT", {
+            {"zh_CN", "设置临时路径点"},
+            {"zh_TW", "設定臨時路徑點"},
+            {"en_US", "Set Temporary Waypoint"},
+            {"de",    "Temporären Wegpunkt setzen"},
+            {"es",    "Establecer punto temporal"},
+            {"fr",    "Définir un point temporaire"},
+            {"id",    "Tetapkan Titik Arah Sementara"},
+            {"it",    "Imposta punto temporaneo"},
+            {"ja",    "一時的なウェイポイントを設定"},
+            {"ko",    "임시 웨이포인트 설정"},
+            {"pt_BR", "Definir Ponto Temporário"},
+            {"ru",    "Установить временную метку"},
+            {"th",    "ตั้งจุดทางชั่วคราว"},
+            {"tr",    "Geçici Yol Noktası Belirle"},
+            {"uk",    "Встановити тимчасову мітку"},
+            {"vi",    "Đặt điểm tạm thời"}
+        }},
+        {"CLEAR_TEMP_WAYPOINT", {
+            {"zh_CN", "清除临时路径点"},
+            {"zh_TW", "清除臨時路徑點"},
+            {"en_US", "Clear Temporary Waypoint"},
+            {"de",    "Temporären Wegpunkt löschen"},
+            {"es",    "Borrar punto temporal"},
+            {"fr",    "Effacer le point temporaire"},
+            {"id",    "Hapus Titik Arah Sementara"},
+            {"it",    "Cancella punto temporaneo"},
+            {"ja",    "一時的なウェイポイントを消去"},
+            {"ko",    "임시 웨이포인트 삭제"},
+            {"pt_BR", "Limpar Ponto Temporário"},
+            {"ru",    "Очистить временную метку"},
+            {"th",    "ล้างจุดทางชั่วคราว"},
+            {"tr",    "Geçici Yol Noktasını Temizle"},
+            {"uk",    "Очистити тимчасову мітку"},
+            {"vi",    "Xóa điểm tạm thời"}
+        }},
+        {"TEMP_WAYPOINT", {
+            {"zh_CN", "设置临时路径点"},
+            {"zh_TW", "設定臨時路徑點"},
+            {"en_US", "Set Temporary Waypoint"},
+            {"de",    "Temporären Wegpunkt setzen"},
+            {"es",    "Establecer punto temporal"},
+            {"fr",    "Définir un point temporaire"},
+            {"id",    "Tetapkan Titik Arah Sementara"},
+            {"it",    "Imposta punto temporaneo"},
+            {"ja",    "一時的なウェイポイントを設定"},
+            {"ko",    "임시 웨이포인트 설정"},
+            {"pt_BR", "Definir Ponto Temporário"},
+            {"ru",    "Установить временную метку"},
+            {"th",    "ตั้งจุดทางชั่วคราว"},
+            {"tr",    "Geçici Yol Noktası Belirle"},
+            {"uk",    "Встановити тимчасову мітку"},
+            {"vi",    "Đặt điểm tạm thời"}
+        }},
+        {"TEMP_WAYPOINT_NAME", {
+            {"zh_CN", "临时标记"},
+            {"zh_TW", "臨時標記"},
+            {"en_US", "Temporary"},
+            {"de",    "Temporär"},
+            {"es",    "Temporal"},
+            {"fr",    "Temporaire"},
+            {"id",    "Sementara"},
+            {"it",    "Temporaneo"},
+            {"ja",    "一時マーカー"},
+            {"ko",    "임시 마커"},
+            {"pt_BR", "Temporário"},
+            {"ru",    "Временный"},
+            {"th",    "ชั่วคราว"},
+            {"tr",    "Geçici"},
+            {"uk",    "Тимчасовий"},
+            {"vi",    "Tạm thời"}
+        }},
+        {"BIGMAP_WAYPOINT_SCALE", {
+            {"zh_CN", "大地图路径点缩放"},
+            {"zh_TW", "大地圖路徑點縮放"},
+            {"en_US", "World Map Waypoint Scale"},
+            {"de",    "Wegpunkt-Skalierung auf Weltkarte"},
+            {"es",    "Escala de puntos en mapa mundial"},
+            {"fr",    "Échelle des points sur la carte"},
+            {"id",    "Skala Titik Arah Peta Dunia"},
+            {"it",    "Scala punti di passaggio mappa"},
+            {"ja",    "ワールドマップウェイポイント縮尺"},
+            {"ko",    "월드맵 웨이포인트 크기 배율"},
+            {"pt_BR", "Escala de Pontos no Mapa Mundial"},
+            {"ru",    "Масштаб меток на карте мира"},
+            {"th",    "สเกลจุดทางบนแผนที่โลก"},
+            {"tr",    "Dünya Haritası Yol Noktası Ölçeği"},
+            {"uk",    "Масштаб міток на мапі світу"},
+            {"vi",    "Tỷ lệ điểm trên bản đồ thế giới"}
+        }},
+        {"SHOW_COMPASS", {
+            {"zh_CN", "显示指南针方位标 (东南西北)"},
+            {"zh_TW", "顯示指南針方位標 (東南西北)"},
+            {"en_US", "Show Compass Directions (NESW)"},
+            {"de",    "Kompass-Himmelsrichtungen anzeigen (NESW)"},
+            {"es",    "Mostrar direcciones de brújula (NESW)"},
+            {"fr",    "Afficher les directions de la boussole (NESW)"},
+            {"id",    "Tampilkan Arah Kompas (NESW)"},
+            {"it",    "Mostra direzioni bussola (NESW)"},
+            {"ja",    "コンパス方位（東西南北）を表示"},
+            {"ko",    "나침반 방위(동서남북) 표시"},
+            {"pt_BR", "Mostrar Direções da Bússola (NESW)"},
+            {"ru",    "Показывать стороны света (СЮВЗ)"},
+            {"th",    "แสดงทิศทางเข็มทิศ (NESW)"},
+            {"tr",    "Pusula Yönlerini Göster (NESW)"},
+            {"uk",    "Показувати сторони горизонту (Пн-Пд-Сх-Зх)"},
+            {"vi",    "Hiện hướng la bàn (Đ-T-N-B)"}
+        }},
+        {"COMPASS_SCALE", {
+            {"zh_CN", "方位标字号缩放"},
+            {"zh_TW", "方位標字型縮放"},
+            {"en_US", "Compass Font Scale"},
+            {"de",    "Kompass-Schriftgröße"},
+            {"es",    "Escala de fuente de brújula"},
+            {"fr",    "Taille de police de la boussole"},
+            {"id",    "Skala Huruf Kompas"},
+            {"it",    "Scala caratteri bussola"},
+            {"ja",    "コンパス文字の拡大縮小"},
+            {"ko",    "나침반 글꼴 크기 배율"},
+            {"pt_BR", "Escala da Fonte da Bússola"},
+            {"ru",    "Масштаб шрифта сторон света"},
+            {"th",    "สเกลตัวอักษรเข็มทิศ"},
+            {"tr",    "Pusula Yazı Tipi Ölçeği"},
+            {"uk",    "Масштаб шрифту сторін горизонту"},
+            {"vi",    "Tỷ lệ chữ la bàn"}
+        }},
+        {"HOTKEY_CENTER_CAMERA", {
+            {"zh_CN", "大地图视角居中对齐玩家"},
+            {"zh_TW", "大地圖視角置中對齊玩家"},
+            {"en_US", "Center View on Player (World Map)"},
+            {"de",    "Kamera auf Spieler zentrieren (Weltkarte)"},
+            {"es",    "Centrar cámara en el jugador (Mapa grande)"},
+            {"fr",    "Centrer la caméra sur le joueur (Grande carte)"},
+            {"id",    "Pusatkan Kamera ke Pemain (Peta Besar)"},
+            {"it",    "Centra visuale sul giocatore (Mappa grande)"},
+            {"ja",    "プレイヤーに視点をセンタリング (大マップ)"},
+            {"ko",    "플레이어 위치로 시점 맞추기 (전체 지도)"},
+            {"pt_BR", "Centralizar câmera no jogador (Mapa grande)"},
+            {"ru",    "Центрировать камеру на игроке (Большая карта)"},
+            {"th",    "ปรับมุมกล้องให้อยู่ตรงกลางผู้เล่น (แผนที่ใหญ่)"},
+            {"tr",    "Kamerayı Oyuncuya Ortala (Büyük Harita)"},
+            {"uk",    "Центрувати камеру на гравці (Велика мапа)"},
+            {"vi",    "Căn giữa camera vào người chơi (Bản đồ lớn)"}
+        }},
+        {"PLAYER_ARROW_SCALE", {
+            {"zh_CN", "玩家箭头大小缩放"},
+            {"zh_TW", "玩家箭頭大小縮放"},
+            {"en_US", "Player Arrow Scale"},
+            {"de",    "Spielerpfeil-Skalierung"},
+            {"es",    "Escala de la flecha del jugador"},
+            {"fr",    "Échelle de la flèche du joueur"},
+            {"id",    "Skala Panah Pemain"},
+            {"it",    "Scala freccia giocatore"},
+            {"ja",    "プレイヤー矢印の大きさ"},
+            {"ko",    "플레이어 화살표 크기 배율"},
+            {"pt_BR", "Escala da Seta do Jogador"},
+            {"ru",    "Масштаб стрелки игрока"},
+            {"th",    "ขนาดลูกศรผู้เล่น"},
+            {"tr",    "Oyuncu Oku Ölçeği"},
+            {"uk",    "Масштаб стрілки гравця"},
+            {"vi",    "Tỷ lệ mũi tên người chơi"}
+        }},
+        {"TIME_FORMAT_24H", {
+            {"zh_CN", "使用24小时制时间"},
+            {"zh_TW", "使用24小時制時間"},
+            {"en_US", "Use 24-Hour Time Format"},
+            {"de",    "24-Stunden-Format verwenden"},
+            {"es",    "Usar formato de 24 horas"},
+            {"fr",    "Utiliser le format 24 heures"},
+            {"id",    "Gunakan Format Waktu 24 Jam"},
+            {"it",    "Usa formato a 24 ore"},
+            {"ja",    "24時間表記を使用"},
+            {"ko",    "24시간 형식 사용"},
+            {"pt_BR", "Usar Formato de 24 Horas"},
+            {"ru",    "Использовать 24-часовой формат"},
+            {"th",    "ใช้รูปแบบเวลา 24 ชั่วโมง"},
+            {"tr",    "24 Saat Formatını Kullan"},
+            {"uk",    "Використовувати 24-годинний формат"},
+            {"vi",    "Sử dụng định dạng 24 giờ"}
+        }},
+        {"SHOW_WAYPOINT_DISTANCE", {
+            {"zh_CN", "在小地图路径点旁显示直线距离"},
+            {"zh_TW", "在迷你地圖路徑點旁顯示直線距離"},
+            {"en_US", "Show Distance on Minimap Waypoints"},
+            {"de",    "Distanz an Wegpunkten auf Minimap anzeigen"},
+            {"es",    "Mostrar distancia en puntos del minimapa"},
+            {"fr",    "Afficher la distance aux points de la minicarte"},
+            {"id",    "Tampilkan Jarak pada Titik Arah Minimap"},
+            {"it",    "Mostra distanza sui punti della minimappa"},
+            {"ja",    "ミニマップのウェイポイントに距離を表示"},
+            {"ko",    "미니맵 웨이포인트 옆에 직선 거리 표시"},
+            {"pt_BR", "Mostrar Distância nos Pontos do Minimapa"},
+            {"ru",    "Показывать расстояние до меток на миникарте"},
+            {"th",    "แสดงระยะทางบนจุดทางในแผนที่ย่อ"},
+            {"tr",    "Mini Harita Noktalarında Mesafeyi Göster"},
+            {"uk",    "Показувати відстань до міток на мінімапі"},
+            {"vi",    "Hiện khoảng cách trên điểm bản đồ nhỏ"}
+        }},
+        {"GOTO_COORDINATES", {
+            {"zh_CN", "跳转到指定坐标"},
+            {"zh_TW", "跳轉到指定座標"},
+            {"en_US", "Go to Coordinates"},
+            {"de",    "Zu Koordinaten springen"},
+            {"es",    "Ir a las coordenadas"},
+            {"fr",    "Aller aux coordonnées"},
+            {"id",    "Buka Koordinat Tertentu"},
+            {"it",    "Vai alle coordinate"},
+            {"ja",    "指定座標へ移動"},
+            {"ko",    "지정 좌표로 이동"},
+            {"pt_BR", "Ir para Coordenadas"},
+            {"ru",    "Перейти к координатам"},
+            {"th",    "ไปยังพิกัด"},
+            {"tr",    "Koordinatlara Git"},
+            {"uk",    "Перейти до координат"},
+            {"vi",    "Đi đến toạ độ"}
+        }},
+        {"JUMP_TO", {
+            {"zh_CN", "跳转"},
+            {"zh_TW", "跳轉"},
+            {"en_US", "Jump"},
+            {"de",    "Springen"},
+            {"es",    "Saltar"},
+            {"fr",    "Aller"},
+            {"id",    "Lompat"},
+            {"it",    "Vai"},
+            {"ja",    "移動"},
+            {"ko",    "이동"},
+            {"pt_BR", "Ir"},
+            {"ru",    "Перейти"},
+            {"th",    "ไป"},
+            {"tr",    "Git"},
+            {"uk",    "Перейти"},
+            {"vi",    "Đi tới"}
+        }},
+        {"COORDS_X", {
+            {"zh_CN", "X 坐标"},
+            {"zh_TW", "X 座標"},
+            {"en_US", "X Coordinate"},
+            {"de",    "X-Koordinate"},
+            {"es",    "Coordenada X"},
+            {"fr",    "Coordonnée X"},
+            {"id",    "Koordinat X"},
+            {"it",    "Coordinata X"},
+            {"ja",    "X 座標"},
+            {"ko",    "X 좌표"},
+            {"pt_BR", "Coordenada X"},
+            {"ru",    "Координата X"},
+            {"th",    "พิกัด X"},
+            {"tr",    "X Koordinatı"},
+            {"uk",    "Координата X"},
+            {"vi",    "Toạ độ X"}
+        }},
+        {"COORDS_Z", {
+            {"zh_CN", "Z 坐标"},
+            {"zh_TW", "Z 座標"},
+            {"en_US", "Z Coordinate"},
+            {"de",    "Z-Koordinate"},
+            {"es",    "Coordenada Z"},
+            {"fr",    "Coordonnée Z"},
+            {"id",    "Koordinat Z"},
+            {"it",    "Coordinata Z"},
+            {"ja",    "Z 座標"},
+            {"ko",    "Z 좌표"},
+            {"pt_BR", "Coordenada Z"},
+            {"ru",    "Координата Z"},
+            {"th",    "พิกัด Z"},
+            {"tr",    "Z Koordinatı"},
+            {"uk",    "Координата Z"},
+            {"vi",    "Toạ độ Z"}
+        }},
+        {"BIGMAP_GOTO_TITLE", {
+            {"zh_CN", "跳转"},
+            {"zh_TW", "跳轉"},
+            {"en_US", "Go to Coordinates"},
+            {"de",    "Zu Koordinaten"},
+            {"es",    "Ir a coordenadas"},
+            {"fr",    "Aller aux coordonnées"},
+            {"id",    "Ke Koordinat"},
+            {"it",    "Vai alle coordinate"},
+            {"ja",    "座標へ移動"},
+            {"ko",    "좌표로 이동"},
+            {"pt_BR", "Ir para coordenadas"},
+            {"ru",    "Перейти к координатам"},
+            {"th",    "ไปยังพิกัด"},
+            {"tr",    "Koordinatlara Git"},
+            {"uk",    "Перейти до координат"},
+            {"vi",    "Đi tới toạ độ"}
+        }},
+        {"BIGMAP_GOTO_BTN", {
+            {"zh_CN", "跳转"},
+            {"zh_TW", "前進"},
+            {"en_US", "Go"},
+            {"de",    "Los"},
+            {"es",    "Ir"},
+            {"fr",    "Aller"},
+            {"id",    "Pergi"},
+            {"it",    "Vai"},
+            {"ja",    "移動"},
+            {"ko",    "이동"},
+            {"pt_BR", "Ir"},
+            {"ru",    "Перейти"},
+            {"th",    "ไป"},
+            {"tr",    "Git"},
+            {"uk",    "Перейти"},
+            {"vi",    "Đi"}
+        }},
+        {"BIGMAP_GOTO_TIP", {
+            {"zh_CN", "输入 X、Z 坐标并回车在地图上快速定位"},
+            {"zh_TW", "輸入 X、Z 座標並按 Enter 在全螢幕地圖上快速定位"},
+            {"en_US", "Enter X, Z coordinates and press Enter to locate on map"},
+            {"de",    "X-, Z-Koordinaten eingeben und Eingabetaste drücken"},
+            {"es",    "Introduce coordenadas X, Z y pulsa Intro para localizar"},
+            {"fr",    "Entrez les coordonnées X, Z et appuyez sur Entrée pour localiser"},
+            {"id",    "Masukkan koordinat X, Z dan tekan Enter untuk mencari lokasi"},
+            {"it",    "Inserisci le coordinate X, Z e premi Invio per localizzare"},
+            {"ja",    "X、Z座標を入力しEnterキーを押すとその位置を特定します"},
+            {"ko",    "X, Z 좌표를 입력하고 Enter를 누르면 위치를 찾습니다"},
+            {"pt_BR", "Digite as coordenadas X, Z e pressione Enter para localizar no mapa"},
+            {"ru",    "Введите координаты X, Z и нажмите Enter для перехода"},
+            {"th",    "ป้อนพิกัด X, Z และกด Enter เพื่อค้นหาตำแหน่งบนแผนที่"},
+            {"tr",    "X, Z koordinatlarını girin ve haritada bulmak için Enter'a basın"},
+            {"uk",    "Введіть координати X, Z і натисніть Enter для перегляду на мапі"},
+            {"vi",    "Nhập toạ độ X, Z và nhấn Enter để định vị trên bản đồ"}
+        }},
+        {"PRESET_POSITIONS", {
+            {"zh_CN", "预设位置"},
+            {"zh_TW", "預設位置"},
+            {"en_US", "Preset Positions"}
+        }},
+        {"PRESET_TOP_LEFT", {
+            {"zh_CN", "左上"},
+            {"zh_TW", "左上"},
+            {"en_US", "Top-Left"}
+        }},
+        {"PRESET_TOP_RIGHT", {
+            {"zh_CN", "右上"},
+            {"zh_TW", "右上"},
+            {"en_US", "Top-Right"}
+        }},
+        {"PRESET_BOTTOM_LEFT", {
+            {"zh_CN", "左下"},
+            {"zh_TW", "左下"},
+            {"en_US", "Bottom-Left"}
+        }},
+        {"PRESET_BOTTOM_RIGHT", {
+            {"zh_CN", "右下"},
+            {"zh_TW", "右下"},
+            {"en_US", "Bottom-Right"}
+        }},
+        {"PRESET_CENTER", {
+            {"zh_CN", "居中"},
+            {"zh_TW", "置中"},
+            {"en_US", "Center"}
+        }},
+        {"MINIMAP_DRAG_HINT", {
+            {"zh_CN", "提示：按住鼠标左键可直接在屏幕上拖拽小地图"},
+            {"zh_TW", "提示：按住滑鼠左鍵可直接在螢幕上拖曳小地圖"},
+            {"en_US", "Tip: Click and drag with mouse directly on screen to move minimap"}
+        }},
+        {"BIGMAP_CONTROLS_HELP", {
+            {"zh_CN", "大地图操作指南"},
+            {"zh_TW", "大地圖操作指南"},
+            {"en_US", "World Map Controls & Help"}
+        }},
+        {"HELP_DRAG_ZOOM", {
+            {"zh_CN", "鼠标左键拖拽平移，滚轮缩放地图"},
+            {"zh_TW", "滑鼠左鍵拖曳平移，滾輪縮放地圖"},
+            {"en_US", "Left-click drag to pan, scroll wheel to zoom"}
+        }},
+        {"HELP_RIGHT_CLICK", {
+            {"zh_CN", "右键点击地图或标记弹出快捷操作菜单"},
+            {"zh_TW", "右鍵點擊地圖或標記彈出快捷操作選單"},
+            {"en_US", "Right-click on map or markers for context menu"}
+        }},
+        {"HELP_SPACE_CENTER", {
+            {"zh_CN", "空格键快速将地图视角居中对齐玩家"},
+            {"zh_TW", "空格鍵快速將地圖視角置中對齊玩家"},
+            {"en_US", "Press Space to center camera on player"}
+        }},
+        {"HELP_SHIFT_DRAG_EXPORT", {
+            {"zh_CN", "按住 Shift + 左键拖拽可框选区域导出高清 PNG"},
+            {"zh_TW", "按住 Shift + 左鍵拖曳可框選區域導出高清 PNG"},
+            {"en_US", "Hold Shift + left drag to select area for PNG export"}
+        }},
+        {"HELP_GOTO_COORDS", {
+            {"zh_CN", "输入 X/Z 坐标按回车可快速定位目标地点"},
+            {"zh_TW", "輸入 X/Z 座標按 Enter 可快速定位目標地點"},
+            {"en_US", "Enter X/Z coordinates and press Enter to jump"}
         }}
     };
 
@@ -808,6 +1847,7 @@ namespace LanguageManager {
             else if (primary == LANG_SPANISH) g_currentLanguage = "es";
             else g_currentLanguage = "en_US";
 
+            MapRenderState::globalUIScale = MapRenderState::GetOptimalUIScale();
             SaveConfig();
             LoadLanguage(g_currentLanguage);
             return;
@@ -825,7 +1865,16 @@ namespace LanguageManager {
                 MapRenderState::showMiniMap = j.value("showMiniMap", true);
                 MapRenderState::isSquareMap = j.value("isSquareMap", false);
                 MapRenderState::rotateMiniMap = j.value("rotateMiniMap", false);
-                MapRenderState::uiTextScale = j.value("uiTextScale", 1.0f);
+                if (j.contains("globalUIScale")) {
+                    MapRenderState::globalUIScale = j.value("globalUIScale", 1.0f);
+                } else if (j.contains("uiTextScale") && std::abs(j.value("uiTextScale", 1.0f) - 1.0f) > 0.01f) {
+                    MapRenderState::globalUIScale = j.value("uiTextScale", 1.0f);
+                } else {
+                    MapRenderState::globalUIScale = MapRenderState::GetOptimalUIScale();
+                }
+                if (MapRenderState::globalUIScale <= 0.0f) {
+                    MapRenderState::globalUIScale = MapRenderState::GetOptimalUIScale();
+                }
                 MapRenderState::miniMapScale = j.value("miniMapScale", 1.0f);
                 MapRenderState::miniMapOffsetX = j.value("miniMapOffsetX", 0.0f);
                 MapRenderState::miniMapOffsetY = j.value("miniMapOffsetY", 0.0f);
@@ -857,6 +1906,23 @@ namespace LanguageManager {
                 MapRenderState::exportMultipleImages = j.value("exportMultipleImages", false);
                 MapRenderState::exportOpenFolder = j.value("exportOpenFolder", true);
                 MapRenderState::exportScaleDownSquare = std::clamp(j.value("exportScaleDownSquare", 20), 0, 90);
+                MapRenderState::terrainSlopes = j.value("terrainSlopes", 2);
+                MapRenderState::terrainDepth = j.value("terrainDepth", true);
+                MapRenderState::adjustHeightForShortBlocks = j.value("adjustHeightForShortBlocks", true);
+                MapRenderState::showFootsteps = j.value("showFootsteps", true);
+                MapRenderState::playerArrowColor = j.value("playerArrowColor", 0);
+                MapRenderState::showZoomButtons = j.value("showZoomButtons", true);
+                MapRenderState::radarShowPlayers = j.value("radarShowPlayers", true);
+                MapRenderState::radarShowHostile = j.value("radarShowHostile", true);
+                MapRenderState::radarShowFriendly = j.value("radarShowFriendly", true);
+                MapRenderState::radarShowItems = j.value("radarShowItems", false);
+                MapRenderState::bigMapWaypointScale = std::clamp(j.value("bigMapWaypointScale", 1.0f), 0.5f, 2.5f);
+                MapRenderState::bigMapShowDisabledWaypoints = j.value("bigMapShowDisabledWaypoints", true);
+                MapRenderState::showCompass = j.value("showCompass", true);
+                MapRenderState::compassScale = std::clamp(j.value("compassScale", 1.0f), 0.8f, 2.0f);
+                MapRenderState::playerArrowScale = std::clamp(j.value("playerArrowScale", 1.0f), 0.5f, 2.0f);
+                MapRenderState::timeFormat24h = j.value("timeFormat24h", true);
+                MapRenderState::showWaypointDistance = j.value("showWaypointDistance", false);
                 // 读取快捷键绑定 (持久化保存，兼容旧版整数配置与新版组合键对象配置)
                 // openBigMap 支持自定义按键，但不可为空；若配置中为空则自动保底为默认 M 键 (0x4D)
                 if (j.contains("hotkeys") && j["hotkeys"].is_object()) {
@@ -896,6 +1962,7 @@ namespace LanguageManager {
                     MapRenderState::g_hotkeys.holdEntities     = loadHk("holdEntities", def.holdEntities);
                     MapRenderState::g_hotkeys.toggleSeedMap    = loadHk("toggleSeedMap", def.toggleSeedMap);
                     MapRenderState::g_hotkeys.enlargeMinimap   = loadHk("enlargeMinimap", def.enlargeMinimap);
+                    MapRenderState::g_hotkeys.centerCamera    = loadHk("centerCamera", def.centerCamera);
                     // 自动将旧版与原版状态效果界面冲突的 Z 键 (0x5A) 迁移为 X 键 (0x58)
                     if (MapRenderState::g_hotkeys.enlargeMinimap.key == 0x5A && MapRenderState::g_hotkeys.enlargeMinimap.modifiers == 0) {
                         MapRenderState::g_hotkeys.enlargeMinimap = def.enlargeMinimap;
@@ -957,7 +2024,8 @@ namespace LanguageManager {
         j["showMiniMap"] = MapRenderState::showMiniMap;
         j["isSquareMap"] = MapRenderState::isSquareMap;
         j["rotateMiniMap"] = MapRenderState::rotateMiniMap;
-        j["uiTextScale"] = MapRenderState::uiTextScale;
+        j["globalUIScale"] = MapRenderState::globalUIScale;
+        j["uiTextScale"] = MapRenderState::globalUIScale;
         j["miniMapScale"] = MapRenderState::miniMapScale;
         j["miniMapOffsetX"] = MapRenderState::miniMapOffsetX;
         j["miniMapOffsetY"] = MapRenderState::miniMapOffsetY;
@@ -989,6 +2057,23 @@ namespace LanguageManager {
         j["exportMultipleImages"] = MapRenderState::exportMultipleImages;
         j["exportOpenFolder"] = MapRenderState::exportOpenFolder;
         j["exportScaleDownSquare"] = MapRenderState::exportScaleDownSquare;
+        j["terrainSlopes"] = MapRenderState::terrainSlopes;
+        j["terrainDepth"] = MapRenderState::terrainDepth;
+        j["adjustHeightForShortBlocks"] = MapRenderState::adjustHeightForShortBlocks;
+        j["showFootsteps"] = MapRenderState::showFootsteps;
+        j["playerArrowColor"] = MapRenderState::playerArrowColor;
+        j["showZoomButtons"] = MapRenderState::showZoomButtons;
+        j["radarShowPlayers"] = MapRenderState::radarShowPlayers;
+        j["radarShowHostile"] = MapRenderState::radarShowHostile;
+        j["radarShowFriendly"] = MapRenderState::radarShowFriendly;
+        j["radarShowItems"] = MapRenderState::radarShowItems;
+        j["bigMapWaypointScale"] = MapRenderState::bigMapWaypointScale;
+        j["bigMapShowDisabledWaypoints"] = MapRenderState::bigMapShowDisabledWaypoints;
+        j["showCompass"] = MapRenderState::showCompass;
+        j["compassScale"] = MapRenderState::compassScale;
+        j["playerArrowScale"] = MapRenderState::playerArrowScale;
+        j["timeFormat24h"] = MapRenderState::timeFormat24h;
+        j["showWaypointDistance"] = MapRenderState::showWaypointDistance;
 
         const auto seedMapSettings = SeedMapManager::GetSettings();
         json seedMapLayers = json::array();
@@ -1029,6 +2114,7 @@ namespace LanguageManager {
         saveHk("holdEntities", MapRenderState::g_hotkeys.holdEntities);
         saveHk("toggleSeedMap", MapRenderState::g_hotkeys.toggleSeedMap);
         saveHk("enlargeMinimap", MapRenderState::g_hotkeys.enlargeMinimap);
+        saveHk("centerCamera", MapRenderState::g_hotkeys.centerCamera);
 
         std::ofstream out(filePath);
         if (out.is_open()) {
@@ -1457,5 +2543,64 @@ namespace LanguageManager {
 
         g_translationCache[key] = std::string(sv);
         return g_translationCache[key].c_str();
+    }
+
+    std::string GetEntityDisplayName(const std::string& typeName, const std::string& nameTag) {
+        if (!nameTag.empty()) {
+            return nameTag;
+        }
+        if (typeName.empty()) {
+            return "";
+        }
+
+        std::string clean = typeName;
+        if (clean.rfind("minecraft:", 0) == 0) {
+            clean = clean.substr(10);
+        }
+
+        for (auto& c : clean) {
+            if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        }
+
+        std::string upperKey = "ENTITY_" + clean;
+        for (auto& c : upperKey) {
+            if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+        }
+
+        const char* trans = GetText(upperKey);
+        if (trans && std::string(trans) != upperKey) {
+            return trans;
+        }
+
+        std::string altKey = "entity." + clean + ".name";
+        const char* altTrans = GetText(altKey);
+        if (altTrans && std::string(altTrans) != altKey) {
+            return altTrans;
+        }
+
+        if (clean.size() > 3 && clean.substr(clean.size() - 3) == "_v2") {
+            std::string baseClean = clean.substr(0, clean.size() - 3);
+            std::string baseUpper = "ENTITY_" + baseClean;
+            for (auto& c : baseUpper) {
+                if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+            }
+            const char* baseTrans = GetText(baseUpper);
+            if (baseTrans && std::string(baseTrans) != baseUpper) {
+                return baseTrans;
+            }
+        }
+
+        std::string fallback = clean;
+        bool capNext = true;
+        for (size_t i = 0; i < fallback.size(); ++i) {
+            if (fallback[i] == '_') {
+                fallback[i] = ' ';
+                capNext = true;
+            } else if (capNext) {
+                if (fallback[i] >= 'a' && fallback[i] <= 'z') fallback[i] = (char)(fallback[i] - 'a' + 'A');
+                capNext = false;
+            }
+        }
+        return fallback;
     }
 }

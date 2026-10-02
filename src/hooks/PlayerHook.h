@@ -4464,6 +4464,12 @@ LL_TYPE_INSTANCE_HOOK(
             g_hasPlayer   = true;
             g_localPlayer = player;
 
+            if (MapRenderState::showFootsteps) {
+                static auto s_startEpoch = std::chrono::steady_clock::now();
+                float curTime = std::chrono::duration<float>(std::chrono::steady_clock::now() - s_startEpoch).count();
+                MapRenderState::AddFootstep(pos.x, pos.y, pos.z, MapRenderState::currentDimensionId, curTime);
+            }
+
             int gameTicks = SafeQueryGameTime(this);
             if (gameTicks >= 0) {
                 MapRenderState::g_gameTimeTicks.store(gameTicks);
@@ -5744,7 +5750,8 @@ LL_TYPE_INSTANCE_HOOK(
 
                             if ((g_scanPerimeterIndex & 31) == 0) {
                                 auto now = std::chrono::high_resolution_clock::now();
-                                if (std::chrono::duration_cast<std::chrono::microseconds>(now - scanStartTime).count() > 500) {
+                                int maxMicroSec = (g_scanPhase == 0) ? 750 : 500;
+                                if (std::chrono::duration_cast<std::chrono::microseconds>(now - scanStartTime).count() > maxMicroSec) {
                                     timeBudgetExceeded = true;
                                     break;
                                 }
@@ -5782,6 +5789,11 @@ LL_TYPE_INSTANCE_HOOK(
                                 g_lastRenderX = g_currentScanX;
                                 g_lastRenderZ = g_currentScanZ;
                                 g_mapDataUpdated.store(true);
+                            }
+                            // [极速优化] Phase 0 核心视野完成后，立即异步写入缓存，使大地图周边区块无需等待数十秒
+                            if (g_scanDimension == MapRenderState::currentDimensionId &&
+                                g_scanDimension == MapCacheManager::GetLoadedDimensionId()) {
+                                SubmitCacheWrite(g_currentScanX, g_currentScanZ, g_scanDimension, true, g_scanBiomeEntries);
                             }
                             g_scanPhase = 1;
                             g_scanRadius = SCAN_INNER_RADIUS + 1;
@@ -5908,6 +5920,12 @@ LL_TYPE_INSTANCE_HOOK(
                                         currentBlockPtr = &blockAbove;
                                     }
 
+                                    if (MapRenderState::adjustHeightForShortBlocks && MapRenderState::IsShortBlock(blockName)) {
+                                        g_mapHeightsBack[arrX][arrZ] = (float)(topY - 1);
+                                    } else {
+                                        g_mapHeightsBack[arrX][arrZ] = (float)topY;
+                                    }
+
                                     if (!blockName.empty()) {
                                         // [原木横截面 vs 树皮侧面判定]
                                         // 若方块为原木/菌柄且处于水平放置状态 (X或Z轴)，从上方俯视显露的是树皮侧面而非年轮横截面，
@@ -6001,7 +6019,8 @@ LL_TYPE_INSTANCE_HOOK(
 
                             if ((g_scanPerimeterIndex & 31) == 0) {
                                 auto now = std::chrono::high_resolution_clock::now();
-                                if (std::chrono::duration_cast<std::chrono::microseconds>(now - scanStartTime).count() > 500) {
+                                int maxMicroSec = (g_scanPhase == 0) ? 750 : 500;
+                                if (std::chrono::duration_cast<std::chrono::microseconds>(now - scanStartTime).count() > maxMicroSec) {
                                     timeBudgetExceeded = true;
                                     break;
                                 }
@@ -6040,6 +6059,22 @@ LL_TYPE_INSTANCE_HOOK(
                                 g_lastRenderZ = g_currentScanZ;
                                 g_mapDataUpdated.store(true);
                             }
+
+                            // [极速优化] Phase 0 核心视野完成后，防污染核验后立即异步提交写入缓存，大地图秒级同步
+                            bool playerUndergroundP0 = false;
+                            if (MapRenderState::currentDimensionId != 1) {
+                                try {
+                                    int detectY = 0;
+                                    playerUndergroundP0 = DetectCaveStart(region, px, (int)g_playerY, pz, detectY);
+                                } catch (...) {}
+                            }
+                            if (!playerUndergroundP0) {
+                                if (g_scanDimension == MapRenderState::currentDimensionId &&
+                                    g_scanDimension == MapCacheManager::GetLoadedDimensionId()) {
+                                    SubmitCacheWrite(g_currentScanX, g_currentScanZ, g_scanDimension, false, g_scanBiomeEntries);
+                                }
+                            }
+
                             g_scanPhase = 1;
                             g_scanRadius = SCAN_INNER_RADIUS + 1;
                             g_scanPerimeterIndex = 0;
@@ -6095,7 +6130,9 @@ LL_TYPE_INSTANCE_HOOK(
         static int entityDelay = 0;
         if (++entityDelay >= 4) { // 提高刷新率至约 5Hz (原60为3秒/次，移动严重跳变)，近乎零开销实现丝滑雷达
             entityDelay = 0;
-            if (MapRenderState::showRadar || g_tabHeld || MapRenderState::showBigMap || MapRenderState::bigMapShowEntities) {
+            bool anyRadarCategory = MapRenderState::radarShowPlayers || MapRenderState::radarShowHostile ||
+                                    MapRenderState::radarShowFriendly || MapRenderState::radarShowItems;
+            if ((MapRenderState::showRadar || g_tabHeld || MapRenderState::showBigMap || MapRenderState::bigMapShowEntities) && anyRadarCategory) {
                 std::vector<RadarEntity> tempEntities;
                 auto& level = player->getLevel();
                 const auto& entities = level.getRuntimeActorList();
@@ -6115,6 +6152,7 @@ LL_TYPE_INSTANCE_HOOK(
                     std::string entityType;
                     std::string uuid;
                     if (IsRadarPlayerLike(*actor)) {
+                        if (!MapRenderState::radarShowPlayers) continue;
                         type = 0;
                         entityType = "player";
                         if (actor->isPlayer()) {
@@ -6123,12 +6161,15 @@ LL_TYPE_INSTANCE_HOOK(
                             ExtractPlayerSkinHead(p, uuid);
                         }
                     } else if (actor->hasCategory(ActorCategory::Item)) {
+                        if (!MapRenderState::radarShowItems) continue;
                         type = 3;
                         entityType = "item";
                     } else if (actor->hasCategory(ActorCategory::Monster)) {
+                        if (!MapRenderState::radarShowHostile) continue;
                         type = 1;
                         try { entityType = actor->getTypeName(); } catch (...) {}
                     } else {
+                        if (!MapRenderState::radarShowFriendly) continue;
                         type = 2;
                         try { entityType = actor->getTypeName(); } catch (...) {}
                     }

@@ -560,8 +560,18 @@ namespace MapCacheManager {
                     if (std::abs(currentY - h) < 64.0f) westY = h;
                 }
 
-                float diff = (currentY - northY) * 0.15f + (currentY - westY) * 0.15f;
-                float shade = std::clamp(1.0f + diff, 0.65f, 1.25f);
+                float northWestY = currentY;
+                if (x > 0 && z > 0 && scanColors[x - 1][z - 1].a > 0.01f) {
+                    float h = scanHeights[x - 1][z - 1];
+                    if (std::abs(currentY - h) < 64.0f) northWestY = h;
+                }
+
+                float shade = MapRenderState::ComputeTerrainShading(
+                    currentY, northY, westY, northWestY,
+                    MapRenderState::terrainSlopes,
+                    MapRenderState::terrainDepth,
+                    isCave
+                );
 
                 region->colors[index + 0] = (uint8_t)(std::clamp(c.r * shade, 0.0f, 1.0f) * 255.0f);
                 region->colors[index + 1] = (uint8_t)(std::clamp(c.g * shade, 0.0f, 1.0f) * 255.0f);

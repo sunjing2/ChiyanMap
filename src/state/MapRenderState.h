@@ -6,6 +6,7 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <cmath>
 #include <mc/deps/core/math/Color.h>
 
 namespace MapRenderState {
@@ -17,6 +18,7 @@ namespace MapRenderState {
     inline float bigMapZoom = 3.0f; // 默认放大 3 倍
     inline bool bigMapShowEntities = false; // 全屏大地图生物头像显示开关 (直观图标按钮切换)
     inline bool bigMapShowMarkers = true;  // 全屏大地图标记显示开关 (路径点 + 死亡点，图标按钮切换，持久化)
+    inline bool bigMapShowDisabledWaypoints = true; // 全屏大地图显示已禁用的路径点 (半透明，持久化)
     inline bool showChunkGrid = false;     // 区块网格显示开关 (小地图 + 大地图共用，图标按钮切换，持久化)
     inline bool bigMapShowHoverBox = true; // 全屏大地图鼠标悬停区块选框显示开关 (持久化)
 
@@ -286,6 +288,7 @@ namespace MapRenderState {
         Hotkey holdEntities      = { 0x09, 0 }; // Tab: 显示生物头像 (小地图/大地图)
         Hotkey toggleSeedMap     = { 0x4B, 0 }; // K: 切换种子全知地图
         Hotkey enlargeMinimap    = { 0x58, 0 }; // X: 放大小地图 (默认 X 键，避免与原版 Z 键状态效果界面冲突)
+        Hotkey centerCamera      = { 0x20, 0 }; // Space: 大地图视角居中对齐玩家
 
         // 系统预设默认值 (单一来源，供"单行重置"与"全部重置"共用)
         static constexpr HotkeyBindings Defaults() {
@@ -298,7 +301,8 @@ namespace MapRenderState {
                 { 0x4A, 0 },
                 { 0x09, 0 },
                 { 0x4B, 0 },
-                { 0x58, 0 }
+                { 0x58, 0 },
+                { 0x20, 0 }
             };
         }
     };
@@ -315,6 +319,7 @@ namespace MapRenderState {
     inline float miniMapOffsetY = 0.0f; // 小地图 Y 偏移
     inline bool showMiniMapPosSettings = false; // 小地图位置设置面板 (切换至小地图界面调整)
     inline bool showMiniMapSettings = false;    // 小地图设置面板 (在大地图内渲染)
+    inline bool showBigMapSettings = false;     // 全屏大地图设置面板 (在大地图内渲染)
 
     // [新增] 实体雷达高低差指示与探索增强配置
     inline bool radarHeightIndicators = true;   // 实体雷达高低差指示箭头 (▲/▼)
@@ -324,6 +329,19 @@ namespace MapRenderState {
     inline bool enlargeMinimapToggle = false;   // 放大小地图按键视为切换 (false=按住, true=切换)
     inline std::atomic<bool> g_enlargeHeld{false}; // 放大小地图按住状态
     inline bool g_enlargeToggled = false;       // 放大小地图切换状态
+
+    // [实体雷达分类过滤] 对应 Xaero's entity_radar_categories (持久化保存)
+    inline bool radarShowPlayers = true;   // 显示玩家
+    inline bool radarShowHostile = true;   // 显示敌对生物
+    inline bool radarShowFriendly = true;  // 显示友好/被动生物
+    inline bool radarShowItems = false;    // 显示掉落物与载具 (默认关，防止杂乱)
+
+    // [大地图路径点缩放] 对应 Xaero's waypoints_scale (持久化保存)
+    inline float bigMapWaypointScale = 1.0f; // 0.5x ~ 2.5x
+
+    // [小地图指南针方位标] 对应 Xaero's compass & compass_scale (持久化保存)
+    inline bool showCompass = true;       // 显示小地图东南西北方位标
+    inline float compassScale = 1.0f;     // 方位标字号缩放比例 (0.8x ~ 2.0x)
 
     // [传送状态机] 用于 UI 加载提示与异常反馈
     // Idle: 无传送 / Loading: 等待区块加载 / Validating: 验证地表 / Failed: 异常回退
@@ -338,7 +356,7 @@ namespace MapRenderState {
         bool isTeleportUIActive = (tp == (int)TeleportState::Loading || 
                                    tp == (int)TeleportState::Validating || 
                                    tp == (int)TeleportState::Failed);
-        return showBigMap || showWaypointUI || showDeathPointUI || showMiniMapPosSettings || showMiniMapSettings || showHotkeySettings || showCaveSettings ||
+        return showBigMap || showWaypointUI || showDeathPointUI || showMiniMapPosSettings || showMiniMapSettings || showBigMapSettings || showHotkeySettings || showCaveSettings ||
                showExportPNGScreen || showSeedMap || isTeleportUIActive;
     }
 
@@ -397,7 +415,14 @@ namespace MapRenderState {
     inline bool showMiniMap = true;  // 是否显示小地图
     inline bool isSquareMap = false; // 是否为方形小地图
     inline bool rotateMiniMap = false; // 小地图跟随视角旋转
-    inline float uiTextScale = 1.0f; // UI 文本缩放比例
+    inline float globalUIScale = 1.0f; // 全局整体 UI 缩放比例 (默认 1.0x，支持 0.5x~2.5x 调节)
+    inline float& uiTextScale = globalUIScale; // 向后兼容旧字段别名引用
+
+    // [UI 自适应缩放] 根据屏幕/窗口纵向分辨率计算推荐的最佳 UI 缩放比例
+    // 1080p及以下: 1.00x | 1200p: 1.10x | 1440p(2K): 1.25x | 1600p: 1.50x | 1800p: 1.65x | 2160p(4K): 2.00x | 2880p(5K)+: 2.50x
+    float CalculateOptimalUIScale(float displayH);
+    float GetOptimalUIScale(float displayH = 0.0f);
+
     inline float miniMapScale = 1.0f; // 小地图本身大小缩放
     inline float miniMapZoomRadius = 50.0f; // 小地图可视范围（玩家周围方块半径，10-200）
 
@@ -433,6 +458,98 @@ namespace MapRenderState {
     // 洞穴模式运行时状态 (每帧计算)
     inline bool g_caveModeActive = false;       // 当前是否处于洞穴模式 (玩家在地下)
     inline int g_caveStartY = 0;                // 当前洞穴起始 Y (扫描顶部)
+
+    // ==================== 地形坡度与深度光影系统 (Xaero's Terrain Slopes & Depth) ====================
+    // 0=Default 2D, 1=Legacy, 2=Default 3D (浮雕立体阴影)
+    inline int terrainSlopes = 2;
+    inline bool terrainDepth = true;
+    inline bool adjustHeightForShortBlocks = true;
+
+    // ==================== 探索足迹与个性化 (Xaero's Footsteps & Customization) ====================
+    inline bool showFootsteps = true;
+    inline int playerArrowColor = 0; // 0=Red, 1=White, 2=Green, 3=Blue, 4=Yellow, 5=Purple, 6=Black, 7=Cyan
+    inline float playerArrowScale = 1.0f; // 玩家箭头大小缩放 (0.50x ~ 2.00x)
+    inline bool timeFormat24h = true;     // 24小时制时间格式 (true=24h, false=12h AM/PM)
+    inline bool showWaypointDistance = false; // 小地图路径点显示直线距离
+    inline bool showZoomButtons = true; // 大地图角落缩放按钮
+
+    struct FootstepPoint {
+        float x;
+        float y;
+        float z;
+        int dimId;
+        float timestamp;
+    };
+    inline std::vector<FootstepPoint> g_footsteps;
+    inline std::mutex g_footstepsMutex;
+
+    inline void AddFootstep(float x, float y, float z, int dimId, float currentTime) {
+        std::lock_guard<std::mutex> lock(g_footstepsMutex);
+        if (!g_footsteps.empty()) {
+            const auto& last = g_footsteps.back();
+            if (last.dimId == dimId) {
+                float dx = x - last.x;
+                float dz = z - last.z;
+                if (dx * dx + dz * dz < 6.25f) return; // 移动距离小于 2.5 格则不新增
+            }
+        }
+        g_footsteps.push_back({x, y, z, dimId, currentTime});
+        if (g_footsteps.size() > 200) {
+            g_footsteps.erase(g_footsteps.begin(), g_footsteps.begin() + 40);
+        }
+    }
+
+    inline bool IsShortBlock(const std::string& name) {
+        if (name.empty()) return false;
+        if (name.find("carpet") != std::string::npos) return true;
+        if (name.find("snow") != std::string::npos && name.find("block") == std::string::npos) return true;
+        if (name.find("lily_pad") != std::string::npos || name.find("waterlily") != std::string::npos) return true;
+        if (name.find("trapdoor") != std::string::npos) return true;
+        if (name.find("repeater") != std::string::npos || name.find("comparator") != std::string::npos) return true;
+        if (name.find("rail") != std::string::npos) return true;
+        if (name.find("pressure_plate") != std::string::npos) return true;
+        if (name.find("button") != std::string::npos) return true;
+        if (name.find("redstone_wire") != std::string::npos) return true;
+        if (name.find("candle") != std::string::npos) return true;
+        if (name.find("flower_pot") != std::string::npos) return true;
+        return false;
+    }
+
+    inline float ComputeTerrainShading(float currentY, float northY, float westY, float northWestY, int slopeMode, bool enableDepth, bool isCave) {
+        float shade = 1.0f;
+
+        if (slopeMode == 1) { // Legacy
+            float verticalSlope = currentY - northY;
+            if (verticalSlope > 0.0f) shade = 1.15f;
+            else if (verticalSlope < 0.0f) shade = 0.85f;
+        } else if (slopeMode == 2) { // Default 3D (浮雕立体阴影)
+            float verticalSlope = currentY - northY;
+            float diagonalSlope = currentY - northWestY;
+            float crossX = verticalSlope - diagonalSlope;
+            float crossZ = -verticalSlope;
+            float crossMagnitude = std::sqrt(crossX * crossX + 1.0f + crossZ * crossZ);
+            float cosAngle = (1.0f - crossZ) / (crossMagnitude * 1.41421356f);
+            if (cosAngle > 1.0f) cosAngle = 1.0f;
+            if (cosAngle < 0.0f) cosAngle = 0.0f;
+            float directLight = (cosAngle >= 0.999f) ? 0.6667f : (std::ceil(cosAngle * 10.0f) / 10.0f) * 0.6667f * 0.88388f;
+            shade = 0.50f + directLight;
+        } else { // Default 2D
+            float verticalSlope = currentY - northY;
+            float surfaceDirectionMagnitude = std::sqrt(verticalSlope * verticalSlope + 1.0f);
+            float cosAngle = (verticalSlope + 1.0f) / (surfaceDirectionMagnitude * 1.41421356f);
+            if (cosAngle > 1.0f) cosAngle = 1.0f;
+            if (cosAngle < 0.0f) cosAngle = 0.0f;
+            float directLight = (cosAngle >= 0.999f) ? 0.6667f : (std::ceil(cosAngle * 10.0f) / 10.0f) * 0.6667f * 0.88388f;
+            shade = 0.50f + directLight;
+        }
+
+        if (enableDepth && !isCave) {
+            float depthFactor = std::clamp(1.0f + (currentY - 64.0f) / 450.0f, 0.70f, 1.15f);
+            shade *= depthFactor;
+        }
+
+        return std::clamp(shade, 0.45f, 1.40f);
+    }
 }
 
 // 【全球探索级】：匹配 16 区块能见度的究极扫描半径（513x513个方块）！
