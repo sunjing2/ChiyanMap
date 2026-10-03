@@ -366,6 +366,7 @@ namespace MapRenderState {
 
     // [新增] 跨菜单桥接：大地图右键唤起新建地标的预设坐标与归属维度
     inline bool triggerAddWaypoint = false;
+    inline bool addWaypointFromBigMap = false; // 是否直接从大地图唤起创建地标窗口
     inline int addWaypointX = -999999;
     inline int addWaypointY = -999999;
     inline int addWaypointZ = -999999;

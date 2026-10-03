@@ -710,6 +710,23 @@ namespace DX11Hook {
             if (uMsg == WM_KILLFOCUS) return 0;
         }
 
+        // 焦点与窗口激活状态切换：确保无条件解除 ClipCursor，并在 UI 激活时保障硬件光标立即可见
+        if (uMsg == WM_KILLFOCUS || (uMsg == WM_ACTIVATE && LOWORD(wParam) == WA_INACTIVE) || (uMsg == WM_ACTIVATEAPP && wParam == FALSE)) {
+            ClipCursor(NULL);
+            g_tabHeld = false;
+        } else if (uMsg == WM_SETFOCUS || (uMsg == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) || (uMsg == WM_ACTIVATEAPP && wParam != FALSE)) {
+            ClipCursor(NULL);
+            if (MapRenderState::IsUIActive()) {
+                if (NativeIME::isTyping.load()) {
+                    int cur = ShowCursor(TRUE);
+                    while (cur < 0) { cur = ShowCursor(TRUE); }
+                    SetCursor(LoadCursor(NULL, IDC_ARROW));
+                } else {
+                    SetCursor(NULL);
+                }
+            }
+        }
+
         if (g_imguiInitialized && g_hasPlayer) {
             bool wasTextInputActive = NativeIME::isTyping.load() || (ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput);
             const auto& holdHk = MapRenderState::g_hotkeys.holdEntities;
@@ -927,8 +944,16 @@ namespace DX11Hook {
                 ClipCursor(NULL);
                 if (uMsg == WM_KEYDOWN && wParam == VK_ESCAPE) {
                     NativeIME::Close();
+
+                    // 1. 如果当前有任何 ImGui 弹窗（右键菜单、模态弹窗等）处于开启状态，
+                    // 仅关闭该弹窗/菜单，不关闭任何外层面板和大地图。
+                    // ImGui 内部已通过 WndProcHandler 收到 Escape 键事件，在此仅阻断穿透。
+                    if (ImGui::GetCurrentContext() && ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopup)) {
+                        return 1;
+                    }
+
+                    // 2. 如果当前有子窗口/面板处于开启状态，优先逐层关闭子窗口
                     if (MapRenderState::showHotkeySettings) {
-                        // [Task 3] 优先关闭快捷键设置面板，清除监听状态
                         MapRenderState::showHotkeySettings = false;
                         MapRenderState::g_listeningHotkey = nullptr;
                     } else if (MapRenderState::showMiniMapPosSettings) {
@@ -947,12 +972,14 @@ namespace DX11Hook {
                         }
                     } else if (MapRenderState::showSeedMap) {
                         MapRenderState::showSeedMap = false;
+                    } else if (MapRenderState::showWaypointUI) {
+                        MapRenderState::showWaypointUI = false;
+                        MapRenderState::addWaypointFromBigMap = false;
                     } else if (MapRenderState::showDeathPointUI) {
                         MapRenderState::showDeathPointUI = false;
-                    } else {
+                    } else if (MapRenderState::showBigMap) {
+                        // 3. 只有在没有任何子窗口和菜单时，才关闭全屏大地图
                         MapRenderState::showBigMap = false;
-                        MapRenderState::showWaypointUI = false; 
-                        MapRenderState::showDeathPointUI = false;
                     }
                     return 1;
                 }
@@ -970,7 +997,16 @@ namespace DX11Hook {
                     return 1; 
                 }
                 
-                if (uMsg == WM_SETCURSOR) { SetCursor(LoadCursor(NULL, IDC_ARROW)); return TRUE; }
+                if (uMsg == WM_SETCURSOR) {
+                    if (LOWORD(lParam) == HTCLIENT) {
+                        if (NativeIME::isTyping.load()) {
+                            SetCursor(LoadCursor(NULL, IDC_ARROW));
+                        } else {
+                            SetCursor(NULL);
+                        }
+                        return TRUE;
+                    }
+                }
             }
         }
         return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
@@ -2827,6 +2863,11 @@ namespace DX11Hook {
         bool isOpen = true;
         // 传入 &isOpen 以在右上角渲染出打叉关闭按钮
         if (ImGui::BeginPopupModal(modalId, &isOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                isOpen = false;
+                ImGui::CloseCurrentPopup();
+                NativeIME::Close();
+            }
             static char nameBuf[256] = "";
             static int  pos[3]      = {0, 0, 0};
             static float col[3]     = {1.0f, 1.0f, 1.0f};
@@ -5035,6 +5076,7 @@ namespace DX11Hook {
             MapRenderState::addWaypointZ = bz;
             MapRenderState::addWaypointDim = viewDim;
             MapRenderState::triggerAddWaypoint = true;
+            MapRenderState::addWaypointFromBigMap = true;
             MapRenderState::showWaypointUI = true;
         }
 
@@ -5158,6 +5200,7 @@ namespace DX11Hook {
                 MapRenderState::addWaypointZ = bz;
                 MapRenderState::addWaypointDim = viewDim;
                 MapRenderState::triggerAddWaypoint = true;
+                MapRenderState::addWaypointFromBigMap = true;
                 MapRenderState::showWaypointUI = true;
             }
 
@@ -5523,6 +5566,7 @@ namespace DX11Hook {
                 MapRenderState::addWaypointZ = (int)std::floor(selectedEntity.z);
                 MapRenderState::addWaypointDim = viewDim;
                 MapRenderState::triggerAddWaypoint = true;
+                MapRenderState::addWaypointFromBigMap = true;
                 MapRenderState::showWaypointUI = true;
             }
 
@@ -6121,6 +6165,7 @@ namespace DX11Hook {
             ImGui::SameLine();
             if (ImGui::Button(LanguageManager::GetText("NEW_WP_BUTTON"), ImVec2(140.0f * curScale, 0))) {
                 NativeIME::Close();
+                MapRenderState::addWaypointFromBigMap = false;
                 showAddPopup = true;
             }
 
@@ -6709,6 +6754,11 @@ namespace DX11Hook {
             // 新建文件夹弹窗
             if (showNewFolderPopup) ImGui::OpenPopup(LanguageManager::GetText("WP_FOLDER_NEW"));
             if (ImGui::BeginPopupModal(LanguageManager::GetText("WP_FOLDER_NEW"), &showNewFolderPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    showNewFolderPopup = false;
+                    ImGui::CloseCurrentPopup();
+                    NativeIME::Close();
+                }
                 static char fNameBuf[128] = "";
                 if (ImGui::IsWindowAppearing()) { fNameBuf[0] = '\0'; }
                 ImGui::Text("%s:", LanguageManager::GetText("WP_FOLDER_NAME"));
@@ -6742,6 +6792,11 @@ namespace DX11Hook {
             // 重命名文件夹弹窗
             if (showRenameFolderPopup) ImGui::OpenPopup(LanguageManager::GetText("WP_FOLDER_RENAME"));
             if (ImGui::BeginPopupModal(LanguageManager::GetText("WP_FOLDER_RENAME"), &showRenameFolderPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    showRenameFolderPopup = false;
+                    ImGui::CloseCurrentPopup();
+                    NativeIME::Close();
+                }
                 static char rNameBuf[128] = "";
                 if (ImGui::IsWindowAppearing()) {
                     snprintf(rNameBuf, sizeof(rNameBuf), "%s", MapRenderState::waypointFolderFilter.c_str());
@@ -6777,6 +6832,10 @@ namespace DX11Hook {
             // 删除文件夹弹窗
             if (showDeleteFolderPopup) ImGui::OpenPopup(LanguageManager::GetText("WP_FOLDER_DELETE"));
             if (ImGui::BeginPopupModal(LanguageManager::GetText("WP_FOLDER_DELETE"), &showDeleteFolderPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    showDeleteFolderPopup = false;
+                    ImGui::CloseCurrentPopup();
+                }
                 char warnMsg[256];
                 snprintf(warnMsg, sizeof(warnMsg), LanguageManager::GetText("WP_FOLDER_CONFIRM_DELETE"), MapRenderState::waypointFolderFilter.c_str());
                 ImGui::TextWrapped("%s", warnMsg);
@@ -6804,6 +6863,15 @@ namespace DX11Hook {
             
             // 新建路径点弹窗（支持置顶与归属文件夹选择）
             if (ImGui::BeginPopupModal(LanguageManager::GetText("NEW_WP_TITLE"), &showAddPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    showAddPopup = false;
+                    ImGui::CloseCurrentPopup();
+                    NativeIME::Close();
+                    if (MapRenderState::addWaypointFromBigMap) {
+                        MapRenderState::showWaypointUI = false;
+                        MapRenderState::addWaypointFromBigMap = false;
+                    }
+                }
                 static char nameBuf[256] = "";
                 static char folderBuf[128] = "";
                 static int pos[3] = {0, 0, 0};
@@ -6897,12 +6965,20 @@ namespace DX11Hook {
                     showAddPopup = false;
                     ImGui::CloseCurrentPopup();
                     NativeIME::Close();
+                    if (MapRenderState::addWaypointFromBigMap) {
+                        MapRenderState::showWaypointUI = false;
+                        MapRenderState::addWaypointFromBigMap = false;
+                    }
                 }
                 ImGui::SameLine();
                 if (ImGui::Button(LanguageManager::GetText("WP_CANCEL"), ImVec2(120.0f * curScale, 0))) {
                     showAddPopup = false;
                     ImGui::CloseCurrentPopup();
                     NativeIME::Close();
+                    if (MapRenderState::addWaypointFromBigMap) {
+                        MapRenderState::showWaypointUI = false;
+                        MapRenderState::addWaypointFromBigMap = false;
+                    }
                 }
                 ImGui::EndPopup();
             }
@@ -6910,6 +6986,10 @@ namespace DX11Hook {
             // 状态跳变检测：点击右上角 [X] 关闭新建窗口时的联动销毁
             if (lastShowAddPopup && !showAddPopup) {
                 NativeIME::Close();
+                if (MapRenderState::addWaypointFromBigMap) {
+                    MapRenderState::showWaypointUI = false;
+                    MapRenderState::addWaypointFromBigMap = false;
+                }
             }
             // 状态跳变检测：点击右上角 [X] 关闭整个管理器面板时的联动销毁
             if (lastShowWPUI && !MapRenderState::showWaypointUI) {
@@ -7681,7 +7761,12 @@ namespace DX11Hook {
             {
                 static bool s_wasUIActive = false;
                 bool uiActiveNow = MapRenderState::IsUIActive();
-                if (s_wasUIActive && !uiActiveNow) {
+                if (!s_wasUIActive && uiActiveNow) {
+                    ClipCursor(NULL);
+                    if (!NativeIME::isTyping.load()) {
+                        SetCursor(NULL);
+                    }
+                } else if (s_wasUIActive && !uiActiveNow) {
                     int cur = ShowCursor(TRUE);
                     while (cur < 0) { cur = ShowCursor(TRUE); }
                     ClipCursor(NULL);
@@ -7766,7 +7851,8 @@ namespace DX11Hook {
                     }
                 }
 
-                // 【修复光标被覆盖】当原生文本框开启时，关闭 ImGui 的软件光标，将显示权交还给被我们强制唤醒的 Windows 硬件光标
+                // 当模组 UI 激活时（且不在使用系统输入法打字时），由 ImGui 绘制光标，确保无论游戏原生处于何种光标隐藏/独占状态，大地图与所有面板均有清晰可靠的光标；
+                // 配合 WndProcHook 中拦截 WM_SETCURSOR / WM_SETFOCUS 将系统硬件光标设为 NULL，杜绝双光标与延迟拖影。
                 ImGui::GetIO().MouseDrawCursor = MapRenderState::IsUIActive() && !NativeIME::isTyping.load();
 
                 static bool s_wasBigMapActive = false;

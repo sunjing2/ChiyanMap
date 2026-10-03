@@ -5370,7 +5370,11 @@ LL_TYPE_INSTANCE_HOOK(
                     SetCursorPos((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2);
                 }
             } else {
-                this->grabMouse();
+                bool nativeScreenOpen = g_clientInstance && !g_clientInstance->isInGameInputEnabled();
+                if (!nativeScreenOpen) {
+                    this->grabMouse();
+                }
+                ClipCursor(NULL);
                 if (hwnd) {
                     RECT rect; GetWindowRect(hwnd, &rect);
                     SetCursorPos((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2);
@@ -5389,44 +5393,13 @@ LL_TYPE_INSTANCE_HOOK(
             s_cachedHwnd = hwnd;
         }
 
-        static int s_clipCursorTickCounter = 0;
-        static bool s_lastCursorHidden = false;
+        // 【光标自由度保障】严禁将光标 ClipCursor 到 2x2 中心像素，否则在单机暂停或打开原生背包等界面时，
+        // 因游戏主循环暂停会导致光标被永久锁死在中心无法移动。在此始终确保解除任何 ClipCursor 限制。
         static bool s_lastIsForeground = false;
-        // 非 UI 激活时的指针锁定：GetForegroundWindow/GetCursorInfo/GetClientRect/ClientToScreen/ClipCursor
-        // 合计 5 个系统调用，每 tick 调用频率 20Hz（50ms）虽然不重，但仍累计。
-        // 用 3 tick（150ms）节流 + 状态变化时立即刷新，人眼完全感知不到延迟。
-        bool stateChanged = false;
         bool isForeground = (hwnd && GetForegroundWindow() == hwnd);
-        if (isForeground != s_lastIsForeground) { s_lastIsForeground = isForeground; stateChanged = true; }
-        s_clipCursorTickCounter++;
-        if (stateChanged || s_clipCursorTickCounter >= 3) {
-            s_clipCursorTickCounter = 0;
-            if (hwnd && isForeground) {
-                if (!MapRenderState::IsUIActive()) {
-                    CURSORINFO ci = {};
-                    ci.cbSize = sizeof(CURSORINFO);
-                    bool hiddenNow = false;
-                    if (GetCursorInfo(&ci)) {
-                        hiddenNow = (ci.flags == 0);
-                        if (ci.flags == 0) {
-                            RECT clientRect;
-                            GetClientRect(hwnd, &clientRect);
-                            POINT ptCenter = { (clientRect.right - clientRect.left) / 2, (clientRect.bottom - clientRect.top) / 2 };
-                            ClientToScreen(hwnd, &ptCenter);
-                            RECT centerRect = { ptCenter.x - 1, ptCenter.y - 1, ptCenter.x + 1, ptCenter.y + 1 };
-                            ClipCursor(&centerRect);
-                        } else {
-                            ClipCursor(NULL);
-                        }
-                    }
-                    if (hiddenNow != s_lastCursorHidden) { s_lastCursorHidden = hiddenNow; }
-                }
-            } else {
-                if (s_lastCursorHidden) {
-                    ClipCursor(NULL);
-                    s_lastCursorHidden = false;
-                }
-            }
+        if (isForeground != s_lastIsForeground) {
+            s_lastIsForeground = isForeground;
+            ClipCursor(NULL);
         }
 
         int px = g_playerBlockX;
