@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Melihat Dimensi",
     "DIM_CURRENT_HINT": "(Dimensi Saat Ini)",
     "DIM_SWITCH_TOOLTIP": "Beralih ke Peta Dunia %s",
+    "DIM_CAVE": "Gua",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Beralih ke Peta Gua Overworld",
     "DIM_LINKED_PLAYER_POS": "Pos Terkait: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Ikon Entitas (Peta Kecil & Besar)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Ikon Entitas: NONAKTIF (Klik untuk aktifkan)",

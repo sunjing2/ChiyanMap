@@ -24,11 +24,12 @@ LL_TYPE_INSTANCE_HOOK(
     }
     origin(deltaTime, obfuscateSwitchTime);
 
-    // 等游戏 UI 引擎开始运转后，挂钩 DXGI 底层
+    // 兜底机制：若模组启用阶段尚未完成挂钩，则在首次 UI 绘制时补齐挂钩
     static bool s_dxgiHooked = false;
     if (!s_dxgiHooked) { 
-        s_dxgiHooked = true; 
-        DX11Hook::init(); 
+        if (DX11Hook::init()) {
+            s_dxgiHooked = true; 
+        }
     }
 
     if (!g_clientInstance || !g_hasPlayer) return;

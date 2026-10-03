@@ -18,6 +18,7 @@
 #undef D3D12_RAYTRACING_GEOMETRY_DESC
 // 现在包含其他头文件
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_dx11.h>
 #include <ll/api/memory/Hook.h>
@@ -710,11 +711,28 @@ namespace DX11Hook {
         }
 
         if (g_imguiInitialized && g_hasPlayer) {
+            bool wasTextInputActive = NativeIME::isTyping.load() || (ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput);
+            const auto& holdHk = MapRenderState::g_hotkeys.holdEntities;
+            bool isHoldDown = (!holdHk.IsEmpty() && (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) && wParam == (WPARAM)holdHk.key);
+
+            // 当用户在全屏大地图按下实体头像热键（如 Tab）时：
+            // 若此时并没有打开模态子窗口（如路径点管理、死亡点管理等），即使跳转坐标输入框曾被鼠标点击聚焦，
+            // 也立即解除输入框聚焦，避免将光标锁定在坐标框中，确保热键能无阻碍切换大地图生物头像显示
+            if (isHoldDown && MapRenderState::showBigMap && !MapRenderState::showWaypointUI && 
+                !MapRenderState::showDeathPointUI && !MapRenderState::showBigMapSettings && 
+                !MapRenderState::showMiniMapSettings && !MapRenderState::showHotkeySettings && 
+                !MapRenderState::showCaveSettings && !MapRenderState::showExportPNGScreen && 
+                !MapRenderState::showSeedMap) {
+                if (ImGui::GetCurrentContext()) {
+                    ImGui::ClearActiveID();
+                }
+                wasTextInputActive = false;
+            }
+
             ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
             
-            bool isTyping = NativeIME::isTyping.load() || (ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput);
-            bool isTextInputActive = isTyping;
-            const auto& holdHk = MapRenderState::g_hotkeys.holdEntities;
+            bool isTextInputActive = wasTextInputActive;
+            bool isTyping = isTextInputActive;
             if (!holdHk.IsEmpty()) {
                 if ((uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) && wParam == (WPARAM)holdHk.key) {
                     if (!isTextInputActive && MapRenderState::g_listeningHotkey == nullptr) {
@@ -1297,7 +1315,7 @@ namespace DX11Hook {
     // ==========================================
     // [小地图 UI 渲染引擎]
     // ==========================================
-    inline void RenderImGuiXaeroMap() {
+    inline void RenderImGuiMiniMap() {
         if (!MapRenderState::showMiniMap) return; 
 
         // 【原生界面避让系统】如果我们的模组界面未开启，但系统鼠标却处于显示状态
@@ -1934,12 +1952,10 @@ namespace DX11Hook {
                         }
                     }
 
-                    // [Xaero 特性] 命名牌实体始终显示名称 / 按住 Tab 显示实体名称
-                    bool showThisName = g_tabHeld || (MapRenderState::alwaysShowNametags && !ent.nameTag.empty());
+                    // 命名牌实体始终显示名称（按住 Tab 放大小地图生物头像时，未命名生物不显示名称，仅命名牌生物显示）
+                    bool showThisName = !ent.nameTag.empty() && (MapRenderState::alwaysShowNametags || g_tabHeld);
                     if (showThisName) {
-                        std::string displayName = (ent.type == 0 && !ent.nameTag.empty()) 
-                            ? ent.nameTag 
-                            : LanguageManager::GetEntityDisplayName(ent.typeName, ent.nameTag);
+                        std::string displayName = ent.nameTag;
                         if (!displayName.empty()) {
                             float tagFontSize = std::clamp(fontSize * 0.72f, 9.0f * MapRenderState::globalUIScale, 16.0f * MapRenderState::globalUIScale);
                             ImVec2 nameSz = font->CalcTextSizeA(tagFontSize, FLT_MAX, 0.0f, displayName.c_str());
@@ -2373,7 +2389,7 @@ namespace DX11Hook {
         if (ImGui::Begin(LanguageManager::GetText("MINIMAP_SETTINGS"), &MapRenderState::showMiniMapSettings, winFlags)) {
 
             // 1. 小地图基础开关
-            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", LanguageManager::GetText("SIDEBAR_OPS"));
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", LanguageManager::GetText("MINIMAP_DISPLAY_SETTINGS"));
             ImGui::Separator();
             if (ImGui::Checkbox(LanguageManager::GetText("SHOW_MINIMAP"), &MapRenderState::showMiniMap)) {
                 LanguageManager::SaveConfig();
@@ -2613,6 +2629,29 @@ namespace DX11Hook {
                 if (ImGui::Checkbox(LanguageManager::GetText("RADAR_SHOW_ITEMS"), &MapRenderState::radarShowItems)) {
                     LanguageManager::SaveConfig();
                 }
+                {
+                    float btnSize = ImGui::GetFrameHeight();
+                    float totalAvail = ImGui::GetContentRegionAvail().x;
+                    float labelW = ImGui::CalcTextSize(LanguageManager::GetText("BIGMAP_ENTITY_SCALE")).x;
+                    float sliderW = std::clamp(totalAvail - labelW - btnSize - 16.0f * curScale, 110.0f * curScale, 180.0f * curScale);
+
+                    float entScale = MapRenderState::bigMapEntityScale;
+                    ImGui::SetNextItemWidth(sliderW);
+                    if (ImGui::SliderFloat("##BigMapEntityScaleSlider", &entScale, 0.5f, 2.5f, "%.2fx")) {
+                        MapRenderState::bigMapEntityScale = entScale;
+                        LanguageManager::SaveConfig();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("\u21BA##BigMapEntityScaleReset", ImVec2(btnSize, btnSize))) {
+                        MapRenderState::bigMapEntityScale = 1.0f;
+                        LanguageManager::SaveConfig();
+                    }
+                    if (ImGui::IsItemHovered()) {
+                        ImGui::SetTooltip("%s (1.00x)", LanguageManager::GetText("RESET"));
+                    }
+                    ImGui::SameLine();
+                    ImGui::Text("%s", LanguageManager::GetText("BIGMAP_ENTITY_SCALE"));
+                }
                 ImGui::Unindent(15.0f * curScale);
             }
             if (ImGui::Checkbox(LanguageManager::GetText("SHOW_BIGMAP_MARKERS"), &MapRenderState::bigMapShowMarkers)) {
@@ -2722,7 +2761,7 @@ namespace DX11Hook {
             ImGui::Separator();
             ImGui::Spacing();
 
-            // 2. 地图光影与地形渲染设置 (Xaero 3D 浮雕 / 坡度 / 深度)
+            // 2. 地图光影与地形渲染设置 (3D 浮雕 / 坡度 / 深度)
             ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", LanguageManager::GetText("MAP_SHADING_SETTINGS"));
             ImGui::Separator();
 
@@ -2742,12 +2781,14 @@ namespace DX11Hook {
                 if (ImGui::Combo("##TerrainSlopesCombo", &curSlopeMode, slopeModes, 3)) {
                     MapRenderState::terrainSlopes = curSlopeMode;
                     MapRenderState::clearGPUCache.store(true);
+                    g_mapDataUpdated.store(true);
                     LanguageManager::SaveConfig();
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("\u21BA##TerrainSlopesReset", ImVec2(btnSize, btnSize))) {
                     MapRenderState::terrainSlopes = 2;
                     MapRenderState::clearGPUCache.store(true);
+                    g_mapDataUpdated.store(true);
                     LanguageManager::SaveConfig();
                 }
                 if (ImGui::IsItemHovered()) {
@@ -2759,11 +2800,13 @@ namespace DX11Hook {
 
             if (ImGui::Checkbox(LanguageManager::GetText("TERRAIN_DEPTH"), &MapRenderState::terrainDepth)) {
                 MapRenderState::clearGPUCache.store(true);
+                g_mapDataUpdated.store(true);
                 LanguageManager::SaveConfig();
             }
 
             if (ImGui::Checkbox(LanguageManager::GetText("ADJUST_HEIGHT_SHORT_BLOCKS"), &MapRenderState::adjustHeightForShortBlocks)) {
                 MapRenderState::clearGPUCache.store(true);
+                g_mapDataUpdated.store(true);
                 LanguageManager::SaveConfig();
             }
 
@@ -3627,9 +3670,9 @@ namespace DX11Hook {
             MapRenderState::clearGPUCache.store(false);
         }
 
-        // [主世界地表保障] 当在下界或其它维度查看主世界(viewDim == 0 且 currentDim != 0)时，无论玩家处于何种高度或洞穴状态，
-        // 必须强制显示主世界地表地图(isCave = false)，绝不能显示主世界洞穴地图。
-        bool isCave = (viewDim == 1) || (viewDim == 0 && currentDim == 0 && MapRenderState::g_caveModeActive);
+        // [主世界地表与洞穴切换] 当查看主世界(viewDim == 0)时，由 bigMapOverworldCave 决定显示地表还是洞穴地图；
+        // 下界(viewDim == 1)固定为洞穴模式(isCave = true)；末地(viewDim == 2)为常规地表(isCave = false)。
+        bool isCave = (viewDim == 1) || (viewDim == 0 && MapRenderState::bigMapOverworldCave);
 
         ImGuiIO& io = ImGui::GetIO();
 
@@ -3640,6 +3683,7 @@ namespace DX11Hook {
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | 
                                         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | 
                                         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | 
+                                        ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav |
                                         ImGuiWindowFlags_NoBackground;
         
         ImGui::Begin("BigMapCanvas", nullptr, window_flags);
@@ -3769,7 +3813,9 @@ namespace DX11Hook {
             // [全屏大地图实时纹理融合] 将当前扫描所得的 513x513 动态实时纹理无缝覆叠在大地图底层区块纹理之上
             // 解决大地图区块持久化延迟导致的“大地图刷新滞后、破坏/放置方块数分钟才显示”的问题
             // 达到与小地图完全一致的毫秒级实时刷新响应，且仅增 1 个 DrawCall，0 性能开销，绝对不掉帧
-            if (viewDim == currentDim && g_mapTextureView) {
+            // 注意：仅当大地图当前查看层与实时扫描层一致时才进行覆叠（例如查看主世界洞穴时，玩家也必须在地下洞穴模式中）
+            bool liveIsCave = (currentDim == 1) || (currentDim == 0 && MapRenderState::g_caveModeActive);
+            if (viewDim == currentDim && g_mapTextureView && (isCave == liveIsCave)) {
                 float texMinX = g_textureCenterX - 256.0f;
                 float texMinZ = g_textureCenterZ - 256.0f;
                 float texMaxX = g_textureCenterX + 257.0f;
@@ -3841,7 +3887,7 @@ namespace DX11Hook {
                         texSRV = EntityIconManager::GetEntityHeadTexture(g_pd3dDevice, ent.typeName, ent.nameTag);
                     }
 
-                    float is = 8.0f;
+                    float is = 8.0f * MapRenderState::bigMapEntityScale;
                     if (ent.type == 0) is *= 1.3f;
 
                     // 显示实体深度：根据相对玩家的 Y 高低差暗化实体
@@ -3859,37 +3905,40 @@ namespace DX11Hook {
                         else if (ent.type == 1) col = IM_COL32((int)(255 * depthFactor), (int)(50 * depthFactor), (int)(50 * depthFactor), 255);
                         else if (ent.type == 2) col = IM_COL32((int)(50 * depthFactor), (int)(255 * depthFactor), (int)(50 * depthFactor), 255);
                         else col = IM_COL32((int)(255 * depthFactor), (int)(255 * depthFactor), (int)(50 * depthFactor), 255);
-                        draw_list->AddRectFilled(ImVec2(ex - 2, ez - 2), ImVec2(ex + 2, ez + 2), col);
-                        is = 2.0f;
+                        float dotR = 2.0f * MapRenderState::bigMapEntityScale;
+                        draw_list->AddRectFilled(ImVec2(ex - dotR, ez - dotR), ImVec2(ex + dotR, ez + dotR), col);
+                        is = dotR;
                     }
 
                     // 实体高低差指示箭头 (▲ / ▼)
                     if (MapRenderState::radarHeightIndicators) {
+                        float arrowH = 4.5f * MapRenderState::bigMapEntityScale;
+                        float arrowW = 3.5f * MapRenderState::bigMapEntityScale;
                         if (dy > 2.5f) {
-                            float arrowTop = ez - is - 2.0f;
-                            ImVec2 p0(ex, arrowTop - 4.5f);
-                            ImVec2 p1(ex - 3.5f, arrowTop);
-                            ImVec2 p2(ex + 3.5f, arrowTop);
+                            float arrowTop = ez - is - 2.0f * MapRenderState::bigMapEntityScale;
+                            ImVec2 p0(ex, arrowTop - arrowH);
+                            ImVec2 p1(ex - arrowW, arrowTop);
+                            ImVec2 p2(ex + arrowW, arrowTop);
                             draw_list->AddTriangle(p0, p1, p2, IM_COL32(0, 0, 0, 240), 1.5f);
                             draw_list->AddTriangleFilled(p0, p1, p2, IM_COL32(255, 255, 255, 250));
                         } else if (dy < -2.5f) {
-                            float arrowBottom = ez + is + 2.0f;
-                            ImVec2 p0(ex, arrowBottom + 4.5f);
-                            ImVec2 p1(ex - 3.5f, arrowBottom);
-                            ImVec2 p2(ex + 3.5f, arrowBottom);
+                            float arrowBottom = ez + is + 2.0f * MapRenderState::bigMapEntityScale;
+                            ImVec2 p0(ex, arrowBottom + arrowH);
+                            ImVec2 p1(ex - arrowW, arrowBottom);
+                            ImVec2 p2(ex + arrowW, arrowBottom);
                             draw_list->AddTriangle(p0, p1, p2, IM_COL32(0, 0, 0, 240), 1.5f);
                             draw_list->AddTriangleFilled(p0, p1, p2, IM_COL32(255, 255, 255, 250));
                         }
                     }
 
-                    // [Xaero 特性] 命名牌实体始终显示名称
+                    // 命名牌实体始终显示名称
                     if (MapRenderState::alwaysShowNametags && !ent.nameTag.empty()) {
                         ImFont* bFont = ImGui::GetFont();
                         float bFontSize = ImGui::GetFontSize();
                         float tagScale = std::clamp(MapRenderState::globalUIScale, 0.5f, 2.5f);
                         float tagFontSize = std::clamp(bFontSize * 0.75f, 10.0f * tagScale, 16.0f * tagScale);
                         ImVec2 nameSz = bFont->CalcTextSizeA(tagFontSize, FLT_MAX, 0.0f, ent.nameTag.c_str());
-                        float tagY = ez + is + ((dy < -2.5f && MapRenderState::radarHeightIndicators) ? 7.0f : 2.0f);
+                        float tagY = ez + is + ((dy < -2.5f && MapRenderState::radarHeightIndicators) ? (7.0f * MapRenderState::bigMapEntityScale) : (2.0f * MapRenderState::bigMapEntityScale));
                         ImVec2 tagPos(ex - nameSz.x * 0.5f, tagY);
                         draw_list->AddText(bFont, tagFontSize, ImVec2(tagPos.x + 1.0f, tagPos.y + 1.0f), IM_COL32(0, 0, 0, 220), ent.nameTag.c_str(), NULL, 0.0f, NULL);
                         draw_list->AddText(bFont, tagFontSize, tagPos, IM_COL32(255, 255, 255, 235), ent.nameTag.c_str(), NULL, 0.0f, NULL);
@@ -3898,7 +3947,7 @@ namespace DX11Hook {
                     // 鼠标悬停实体与点击交互
                     if (isHoveringCanvas && !MapRenderState::showExportPNGScreen) {
                         float mouseDistSq = (io.MousePos.x - ex) * (io.MousePos.x - ex) + (io.MousePos.y - ez) * (io.MousePos.y - ez);
-                        float hitR = is + 4.0f;
+                        float hitR = is + 4.0f * MapRenderState::bigMapEntityScale;
                         if (mouseDistSq <= hitR * hitR) {
                             double eDist = std::sqrt((double)(ent.x - g_playerBlockX) * (ent.x - g_playerBlockX) + (double)(ent.z - g_playerBlockZ) * (ent.z - g_playerBlockZ));
                             char distBuf[64];
@@ -4015,7 +4064,7 @@ namespace DX11Hook {
             }
         }
 
-        // [鼠标悬停区块选择框] Xaero 风格：鼠标所在区块半透明填充 + 描边
+        // [鼠标悬停区块选择框] 鼠标所在区块半透明填充 + 描边
         if (MapRenderState::bigMapShowHoverBox && isHoveringCanvas) {
             int hoverChunkX = (int)std::floor(curHoverWx / 16.0f);
             int hoverChunkZ = (int)std::floor(curHoverWz / 16.0f);
@@ -4214,20 +4263,125 @@ namespace DX11Hook {
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f * curScale, 0.0f));
             ImGui::BeginGroup();
 
-            for (int d = 0; d < 3; ++d) {
-                if (d > 0) ImGui::SameLine();
-                bool isSelected = (viewDim == d);
-                bool isPhysical = (currentDim == d);
-                const char* dimLabel = LanguageManager::GetText(d == 0 ? "WP_TAB_OVERWORLD" : (d == 1 ? "WP_TAB_NETHER" : "WP_TAB_END"));
+            // 1. 主世界地表
+            {
+                bool isSelected = (viewDim == 0 && !MapRenderState::bigMapOverworldCave);
+                bool isPhysical = (currentDim == 0 && !MapRenderState::g_caveModeActive);
+                const char* dimLabel = LanguageManager::GetText("WP_TAB_OVERWORLD");
 
-                // 配色方案：选中状态赋予维度主题高亮色；未选中状态采用半透明深灰底色
                 ImVec4 bgCol, bgHover, bgActive;
                 if (isSelected) {
-                    if (d == 0) { // 主世界: 自然森林绿
-                        bgCol    = ImVec4(0.18f, 0.50f, 0.22f, 0.95f);
-                        bgHover  = ImVec4(0.24f, 0.62f, 0.28f, 1.0f);
-                        bgActive = ImVec4(0.14f, 0.42f, 0.18f, 1.0f);
-                    } else if (d == 1) { // 下界: 地狱深红
+                    bgCol    = ImVec4(0.18f, 0.50f, 0.22f, 0.95f);
+                    bgHover  = ImVec4(0.24f, 0.62f, 0.28f, 1.0f);
+                    bgActive = ImVec4(0.14f, 0.42f, 0.18f, 1.0f);
+                } else {
+                    bgCol    = ImVec4(0.12f, 0.12f, 0.15f, 0.75f);
+                    bgHover  = ImVec4(0.25f, 0.25f, 0.30f, 0.90f);
+                    bgActive = ImVec4(0.35f, 0.35f, 0.40f, 1.0f);
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Button, bgCol);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bgHover);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, bgActive);
+                ImGui::PushStyleColor(ImGuiCol_Text, isSelected ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f) : ImVec4(0.80f, 0.80f, 0.85f, 0.90f));
+
+                char btnId[64];
+                snprintf(btnId, sizeof(btnId), "%s###DimBtn_0", dimLabel);
+                if (ImGui::Button(btnId, ImVec2(0.0f, 25.0f * curScale))) {
+                    bool needReload = (viewDim != 0) || MapRenderState::bigMapOverworldCave;
+                    if (viewDim != 0) {
+                        MapRenderState::SaveDimCamera(viewDim, g_smoothPX, g_smoothPZ);
+                        MapCacheManager::SwitchViewDimension(0);
+                        MapRenderState::RestoreDimCamera(0, viewDim, g_smoothPX, g_smoothPZ);
+                        MapRenderState::bigMapViewDimensionId = 0;
+                    }
+                    if (needReload) {
+                        MapRenderState::bigMapOverworldCave = false;
+                        MapRenderState::clearGPUCache.store(true);
+                        MapRenderState::hoverBiomeAlpha = 0.0f;
+                        MapRenderState::hoverBiomeTargetAlpha = 0.0f;
+                        MapRenderState::hoverBiomeHasValidResult = false;
+                        MapCacheManager::InvalidateExportPreview();
+                    }
+                }
+                ImGui::PopStyleColor(4);
+
+                if (ImGui::IsItemHovered()) {
+                    char tipBuf[256];
+                    if (isPhysical) {
+                        snprintf(tipBuf, sizeof(tipBuf), "%s %s", dimLabel, LanguageManager::GetText("DIM_CURRENT_HINT"));
+                    } else {
+                        snprintf(tipBuf, sizeof(tipBuf), LanguageManager::GetText("DIM_SWITCH_TOOLTIP"), dimLabel);
+                    }
+                    ImGui::SetTooltip("%s", tipBuf);
+                }
+            }
+
+            // 2. 主世界洞穴
+            ImGui::SameLine();
+            {
+                bool isSelected = (viewDim == 0 && MapRenderState::bigMapOverworldCave);
+                bool isPhysical = (currentDim == 0 && MapRenderState::g_caveModeActive);
+                const char* dimLabel = LanguageManager::GetText("DIM_CAVE");
+
+                ImVec4 bgCol, bgHover, bgActive;
+                if (isSelected) {
+                    bgCol    = ImVec4(0.16f, 0.38f, 0.46f, 0.95f);
+                    bgHover  = ImVec4(0.22f, 0.48f, 0.58f, 1.0f);
+                    bgActive = ImVec4(0.12f, 0.30f, 0.38f, 1.0f);
+                } else {
+                    bgCol    = ImVec4(0.12f, 0.12f, 0.15f, 0.75f);
+                    bgHover  = ImVec4(0.25f, 0.25f, 0.30f, 0.90f);
+                    bgActive = ImVec4(0.35f, 0.35f, 0.40f, 1.0f);
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Button, bgCol);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bgHover);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, bgActive);
+                ImGui::PushStyleColor(ImGuiCol_Text, isSelected ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f) : ImVec4(0.80f, 0.80f, 0.85f, 0.90f));
+
+                char btnId[64];
+                snprintf(btnId, sizeof(btnId), "%s###DimBtn_Cave", dimLabel);
+                if (ImGui::Button(btnId, ImVec2(0.0f, 25.0f * curScale))) {
+                    bool needReload = (viewDim != 0) || !MapRenderState::bigMapOverworldCave;
+                    if (viewDim != 0) {
+                        MapRenderState::SaveDimCamera(viewDim, g_smoothPX, g_smoothPZ);
+                        MapCacheManager::SwitchViewDimension(0);
+                        MapRenderState::RestoreDimCamera(0, viewDim, g_smoothPX, g_smoothPZ);
+                        MapRenderState::bigMapViewDimensionId = 0;
+                    }
+                    if (needReload) {
+                        MapRenderState::bigMapOverworldCave = true;
+                        MapRenderState::clearGPUCache.store(true);
+                        MapRenderState::hoverBiomeAlpha = 0.0f;
+                        MapRenderState::hoverBiomeTargetAlpha = 0.0f;
+                        MapRenderState::hoverBiomeHasValidResult = false;
+                        MapCacheManager::InvalidateExportPreview();
+                    }
+                }
+                ImGui::PopStyleColor(4);
+
+                if (ImGui::IsItemHovered()) {
+                    char tipBuf[256];
+                    if (isPhysical) {
+                        snprintf(tipBuf, sizeof(tipBuf), "%s %s", dimLabel, LanguageManager::GetText("DIM_CURRENT_HINT"));
+                    } else {
+                        snprintf(tipBuf, sizeof(tipBuf), "%s", LanguageManager::GetText("DIM_SWITCH_TOOLTIP_CAVE"));
+                    }
+                    ImGui::SetTooltip("%s", tipBuf);
+                }
+            }
+
+            // 3. 下界 & 4. 末地
+            for (int d = 1; d <= 2; ++d) {
+                ImGui::SameLine();
+                bool isSelected = (viewDim == d);
+                bool isPhysical = (currentDim == d);
+                const char* dimLabel = LanguageManager::GetText(d == 1 ? "WP_TAB_NETHER" : "WP_TAB_END");
+
+                ImVec4 bgCol, bgHover, bgActive;
+                if (isSelected) {
+                    if (d == 1) { // 下界: 地狱深红
                         bgCol    = ImVec4(0.65f, 0.18f, 0.18f, 0.95f);
                         bgHover  = ImVec4(0.78f, 0.24f, 0.24f, 1.0f);
                         bgActive = ImVec4(0.52f, 0.14f, 0.14f, 1.0f);
@@ -4301,16 +4455,18 @@ namespace DX11Hook {
 
             float inputW = 60.0f * curScale;
 
+            ImGui::PushTabStop(false);
+
             // X 坐标输入框
             ImGui::SetNextItemWidth(inputW);
-            bool enterX = ImGui::InputTextWithHint("##GotoX", "X", s_gotoXBuf, sizeof(s_gotoXBuf), ImGuiInputTextFlags_EnterReturnsTrue);
+            bool enterX = ImGui::InputTextWithHint("##GotoX", "X", s_gotoXBuf, sizeof(s_gotoXBuf), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll);
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", LanguageManager::GetText("BIGMAP_GOTO_TIP"));
 
             ImGui::SameLine();
 
             // Z 坐标输入框
             ImGui::SetNextItemWidth(inputW);
-            bool enterZ = ImGui::InputTextWithHint("##GotoZ", "Z", s_gotoZBuf, sizeof(s_gotoZBuf), ImGuiInputTextFlags_EnterReturnsTrue);
+            bool enterZ = ImGui::InputTextWithHint("##GotoZ", "Z", s_gotoZBuf, sizeof(s_gotoZBuf), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll);
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", LanguageManager::GetText("BIGMAP_GOTO_TIP"));
 
             ImGui::SameLine();
@@ -4321,7 +4477,12 @@ namespace DX11Hook {
             PopOreButtonStyle();
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", LanguageManager::GetText("BIGMAP_GOTO_TIP"));
 
+            ImGui::PopTabStop();
+
             if (enterX || enterZ || clickGo) {
+                if (ImGui::GetCurrentContext()) {
+                    ImGui::ClearActiveID();
+                }
                 float tx = 0.0f, tz = 0.0f;
                 if (ParseGotoCoords(s_gotoXBuf, s_gotoZBuf, tx, tz)) {
                     if (std::floor(tx) == tx && std::abs(tx) < 1e7f) {
@@ -4853,7 +5014,7 @@ namespace DX11Hook {
         ImGui::EndChild();
         ImGui::PopStyleColor();
 
-        // [双击新建路径点] Xaero 风格：在大地图空白处双击直接打开创建路径点窗口
+        // [双击新建路径点] 在大地图空白处双击直接打开创建路径点窗口
         if (isHoveringCanvas && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !MapRenderState::showExportPNGScreen && !triggerWpMenu && !triggerDeathMenu && !triggerEntityMenu) {
             int bx = (int)std::floor(curHoverWx);
             int bz = (int)std::floor(curHoverWz);
@@ -4877,7 +5038,7 @@ namespace DX11Hook {
             MapRenderState::showWaypointUI = true;
         }
 
-        // [Space / 自定义快捷键快速重置视角] Xaero 风格：快速回到玩家位置
+        // [Space / 自定义快捷键快速重置视角] 快速回到玩家位置
         bool triggerCenter = false;
         if (!io.WantTextInput) {
             const auto& hk = MapRenderState::g_hotkeys.centerCamera;
@@ -5096,7 +5257,7 @@ namespace DX11Hook {
                     bigMapTriggerEdit = true;
                 }
 
-                // 启用/禁用路径点 (Xaero 核心特性：右键直接切换启用状态)
+                // 启用/禁用路径点 (右键直接切换启用状态)
                 const char* toggleWpText = targetWp.enabled ? LanguageManager::GetText("DISABLE_WP") : LanguageManager::GetText("ENABLE_WP");
                 if (ImGui::Selectable(toggleWpText)) {
                     WaypointManager::ToggleWaypoint(selectedWpId);
@@ -6924,7 +7085,7 @@ namespace DX11Hook {
     }
 
     // ==========================================
-    // [洞穴地图] 洞穴设置面板 (Xaero's Cave Map 1:1 复刻)
+    // [洞穴地图] 洞穴设置面板
     // ==========================================
     inline void RenderCaveSettings() {
         if (!MapRenderState::showCaveSettings) return;
@@ -7610,6 +7771,9 @@ namespace DX11Hook {
 
                 static bool s_wasBigMapActive = false;
                 if (MapRenderState::showBigMap) {
+                    if (!s_wasBigMapActive) {
+                        MapRenderState::bigMapOverworldCave = (MapRenderState::currentDimensionId == 0 && MapRenderState::g_caveModeActive);
+                    }
                     s_wasBigMapActive = true;
                     RenderImGuiBigMap();
                 } else {
@@ -7618,6 +7782,7 @@ namespace DX11Hook {
                         // 大地图关闭：保存关闭前所在维度的视角中心与缩放
                         int closingDim = MapRenderState::GetEffectiveViewDimensionId();
                         MapRenderState::SaveDimCamera(closingDim, g_smoothPX, g_smoothPZ);
+                        MapRenderState::bigMapOverworldCave = false;
 
                         // 大地图关闭：若曾切换到其他维度浏览，立即切回玩家物理所在维度
                         // 注意：若正在进行跨维度传送，不要切回原物理维度，让传送流程接管维度切换
@@ -7631,7 +7796,7 @@ namespace DX11Hook {
                         s_gotoTargetActive = false;
                         s_gotoTargetTimer = 0.0f;
                     }
-                    RenderImGuiXaeroMap();
+                    RenderImGuiMiniMap();
                 }
 
                 if (MapRenderState::showWaypointUI) {
@@ -7741,8 +7906,20 @@ namespace DX11Hook {
     }
 
     inline bool init() {
+        static std::mutex s_initMutex;
+        static std::atomic<bool> s_initialized{false};
+        if (s_initialized.load()) return true;
+
+        std::lock_guard<std::mutex> lock(s_initMutex);
+        if (s_initialized.load()) return true;
+
         HWND hwnd = FindWindowW(L"Minecraft", NULL);
         if (!hwnd) hwnd = GetForegroundWindow();
+        bool createdDummyHwnd = false;
+        if (!hwnd) {
+            hwnd = CreateWindowExW(0, L"STATIC", L"ChiyanDummy", WS_OVERLAPPED, 0, 0, 100, 100, NULL, NULL, GetModuleHandle(NULL), NULL);
+            createdDummyHwnd = (hwnd != NULL);
+        }
         if (!hwnd) return false;
         
         D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
@@ -7756,53 +7933,69 @@ namespace DX11Hook {
         ID3D11DeviceContext* dummyContext = nullptr;
 
         MH_STATUS status = MH_Initialize();
+        if (status != MH_OK && status != MH_ERROR_ALREADY_INITIALIZED) {
+            if (createdDummyHwnd && hwnd) DestroyWindow(hwnd);
+            return false;
+        }
 
+        bool d3d11Success = false;
         if (SUCCEEDED(D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, &featureLevel, 1, D3D11_SDK_VERSION, &sd, &dummySwapChain, &dummyDevice, NULL, &dummyContext))) {
             void** pVTable = *reinterpret_cast<void***>(dummySwapChain);
-            if (status == MH_OK || status == MH_ERROR_ALREADY_INITIALIZED) {
-                MH_CreateHook(pVTable[8], (LPVOID)hkPresent, (void**)&oPresent);
-                MH_EnableHook(pVTable[8]);
+            
+            if (MH_CreateHook(pVTable[8], (LPVOID)hkPresent, (void**)&oPresent) == MH_OK) {
+                MH_QueueEnableHook(pVTable[8]);
+            }
+            if (MH_CreateHook(pVTable[13], (LPVOID)hkResizeBuffers, (void**)&oResizeBuffers) == MH_OK) {
+                MH_QueueEnableHook(pVTable[13]);
+            }
 
-                MH_CreateHook(pVTable[13], (LPVOID)hkResizeBuffers, (void**)&oResizeBuffers);
-                MH_EnableHook(pVTable[13]);
-
-                IDXGISwapChain1* dummySwapChain1 = nullptr;
-                if (SUCCEEDED(dummySwapChain->QueryInterface(__uuidof(IDXGISwapChain1), (void**)&dummySwapChain1))) {
-                    void** pVTable1 = *reinterpret_cast<void***>(dummySwapChain1);
-                    MH_CreateHook(pVTable1[22], (LPVOID)hkPresent1, (void**)&oPresent1);
-                    MH_EnableHook(pVTable1[22]);
-                    dummySwapChain1->Release();
+            IDXGISwapChain1* dummySwapChain1 = nullptr;
+            if (SUCCEEDED(dummySwapChain->QueryInterface(__uuidof(IDXGISwapChain1), (void**)&dummySwapChain1))) {
+                void** pVTable1 = *reinterpret_cast<void***>(dummySwapChain1);
+                if (MH_CreateHook(pVTable1[22], (LPVOID)hkPresent1, (void**)&oPresent1) == MH_OK) {
+                    MH_QueueEnableHook(pVTable1[22]);
                 }
+                dummySwapChain1->Release();
+            }
 
-                HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
-                if (hUser32) {
-                    void* pGetRawInputData = (void*)GetProcAddress(hUser32, "GetRawInputData");
-                    if (pGetRawInputData && MH_CreateHook(pGetRawInputData, (LPVOID)hkGetRawInputData, (void**)&oGetRawInputData) == MH_OK) {
-                        MH_EnableHook(pGetRawInputData);
-                    }
-                    void* pGetRawInputBuffer = (void*)GetProcAddress(hUser32, "GetRawInputBuffer");
-                    if (pGetRawInputBuffer && MH_CreateHook(pGetRawInputBuffer, (LPVOID)hkGetRawInputBuffer, (void**)&oGetRawInputBuffer) == MH_OK) {
-                        MH_EnableHook(pGetRawInputBuffer);
-                    }
-                    void* pGetAsyncKeyState = (void*)GetProcAddress(hUser32, "GetAsyncKeyState");
-                    if (pGetAsyncKeyState && MH_CreateHook(pGetAsyncKeyState, (LPVOID)hkGetAsyncKeyState, (void**)&oGetAsyncKeyState) == MH_OK) {
-                        MH_EnableHook(pGetAsyncKeyState);
-                    }
-                    void* pGetKeyState = (void*)GetProcAddress(hUser32, "GetKeyState");
-                    if (pGetKeyState && MH_CreateHook(pGetKeyState, (LPVOID)hkGetKeyState, (void**)&oGetKeyState) == MH_OK) {
-                        MH_EnableHook(pGetKeyState);
-                    }
-                    void* pGetCursorPos = (void*)GetProcAddress(hUser32, "GetCursorPos");
-                    if (pGetCursorPos && MH_CreateHook(pGetCursorPos, (LPVOID)hkGetCursorPos, (void**)&oGetCursorPos) == MH_OK) {
-                        MH_EnableHook(pGetCursorPos);
-                    }
-                    void* pSetCursorPos = (void*)GetProcAddress(hUser32, "SetCursorPos");
-                    if (pSetCursorPos && MH_CreateHook(pSetCursorPos, (LPVOID)hkSetCursorPos, (void**)&oSetCursorPos) == MH_OK) {
-                        MH_EnableHook(pSetCursorPos);
-                    }
+            HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
+            if (hUser32) {
+                void* pGetRawInputData = (void*)GetProcAddress(hUser32, "GetRawInputData");
+                if (pGetRawInputData && MH_CreateHook(pGetRawInputData, (LPVOID)hkGetRawInputData, (void**)&oGetRawInputData) == MH_OK) {
+                    MH_QueueEnableHook(pGetRawInputData);
+                }
+                void* pGetRawInputBuffer = (void*)GetProcAddress(hUser32, "GetRawInputBuffer");
+                if (pGetRawInputBuffer && MH_CreateHook(pGetRawInputBuffer, (LPVOID)hkGetRawInputBuffer, (void**)&oGetRawInputBuffer) == MH_OK) {
+                    MH_QueueEnableHook(pGetRawInputBuffer);
+                }
+                void* pGetAsyncKeyState = (void*)GetProcAddress(hUser32, "GetAsyncKeyState");
+                if (pGetAsyncKeyState && MH_CreateHook(pGetAsyncKeyState, (LPVOID)hkGetAsyncKeyState, (void**)&oGetAsyncKeyState) == MH_OK) {
+                    MH_QueueEnableHook(pGetAsyncKeyState);
+                }
+                void* pGetKeyState = (void*)GetProcAddress(hUser32, "GetKeyState");
+                if (pGetKeyState && MH_CreateHook(pGetKeyState, (LPVOID)hkGetKeyState, (void**)&oGetKeyState) == MH_OK) {
+                    MH_QueueEnableHook(pGetKeyState);
+                }
+                void* pGetCursorPos = (void*)GetProcAddress(hUser32, "GetCursorPos");
+                if (pGetCursorPos && MH_CreateHook(pGetCursorPos, (LPVOID)hkGetCursorPos, (void**)&oGetCursorPos) == MH_OK) {
+                    MH_QueueEnableHook(pGetCursorPos);
+                }
+                void* pSetCursorPos = (void*)GetProcAddress(hUser32, "SetCursorPos");
+                if (pSetCursorPos && MH_CreateHook(pSetCursorPos, (LPVOID)hkSetCursorPos, (void**)&oSetCursorPos) == MH_OK) {
+                    MH_QueueEnableHook(pSetCursorPos);
                 }
             }
             dummySwapChain->Release(); dummyDevice->Release(); dummyContext->Release();
+            d3d11Success = true;
+        }
+
+        if (createdDummyHwnd && hwnd) {
+            DestroyWindow(hwnd);
+            hwnd = nullptr;
+        }
+
+        if (!d3d11Success) {
+            return false;
         }
 
         ID3D12Device* pDummyD12Device = nullptr;
@@ -7813,12 +8006,18 @@ namespace DX11Hook {
             if (SUCCEEDED(pDummyD12Device->CreateCommandQueue(&queueDesc, __uuidof(ID3D12CommandQueue), (void**)&pDummyQueue))) {
                 void** pVTable12 = *reinterpret_cast<void***>(pDummyQueue);
                 if (MH_CreateHook(pVTable12[10], (LPVOID)hkExecuteCommandLists, (void**)&oExecuteCommandLists) == MH_OK) {
-                    MH_EnableHook(pVTable12[10]);
+                    MH_QueueEnableHook(pVTable12[10]);
                 }
                 pDummyQueue->Release();
             }
             pDummyD12Device->Release();
         }
+
+        // [性能关键修复] 一次性批量激活所有钩子 (仅执行单次全进程线程挂起与恢复)
+        // 彻底杜绝原本逐个调用 MH_EnableHook 触发 10 次重复线程遍历/冻结所引起的 1~4 秒主菜单严重卡顿
+        MH_ApplyQueued();
+
+        s_initialized.store(true);
         return true;
     }
 }

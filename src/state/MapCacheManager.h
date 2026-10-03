@@ -164,6 +164,6 @@ namespace MapCacheManager {
     // [PNG导出] 刷新/失效预览参数计算缓存
     void InvalidateExportPreview();
 
-    // [PNG导出] 异步导出当前世界/维度地图为 PNG (复刻 Xaero PNGExporter)
+    // [PNG导出] 异步导出当前世界/维度地图为 PNG
     void TriggerExportMapToPNG();
 }

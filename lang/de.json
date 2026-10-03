@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Ansichtsdimension",
     "DIM_CURRENT_HINT": "(Aktuelle Spielerdimension)",
     "DIM_SWITCH_TOOLTIP": "Zu %s-Weltkarte wechseln",
+    "DIM_CAVE": "Höhlen",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Zu Oberwelt-Höhlenkarte wechseln",
     "DIM_LINKED_PLAYER_POS": "Verknüpfte Pos: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Kreaturen-Icons (Minikarte & Weltkarte)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Kreaturen-Icons: AUS (Klicken zum Aktivieren)",

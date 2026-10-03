@@ -45,7 +45,7 @@ namespace WaypointManager {
     void UpdateWaypoint(const std::string& id, const std::string& name, int x, int y, int z, float r, float g, float b, bool enabled, bool pinned = false, const std::string& folder = "");
     bool RestoreLastDeletedWaypoint();
 
-    // 临时路径点接口 (Xaero 核心特性：单例临时路径点，重复设置自动更新)
+    // 临时路径点接口 (单例临时路径点，重复设置自动更新)
     std::string SetTemporaryWaypoint(int x, int y, int z, int dimId = -1);
     void ClearTemporaryWaypoint();
     bool HasTemporaryWaypoint();

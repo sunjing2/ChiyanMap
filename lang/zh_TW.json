@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "目前檢視",
     "DIM_CURRENT_HINT": "(目前所在維度)",
     "DIM_SWITCH_TOOLTIP": "切換檢視 %s 大地圖",
+    "DIM_CAVE": "洞穴",
+    "DIM_SWITCH_TOOLTIP_CAVE": "切換檢視主世界洞穴地圖",
     "DIM_LINKED_PLAYER_POS": "對應座標: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "顯示生物頭像 (小地圖/大地圖)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "顯示生物頭像: 關 (點擊開啟)",

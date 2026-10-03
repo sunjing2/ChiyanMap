@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "表示中のディメンション",
     "DIM_CURRENT_HINT": "(現在のディメンション)",
     "DIM_SWITCH_TOOLTIP": "%s のワールドマップに切り替え",
+    "DIM_CAVE": "洞窟",
+    "DIM_SWITCH_TOOLTIP_CAVE": "オーバーワールドの洞窟マップに切り替え",
     "DIM_LINKED_PLAYER_POS": "対応座標: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "エンティティアイコン (小/大マップ)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "エンティティアイコン: オフ (クリックで有効化)",

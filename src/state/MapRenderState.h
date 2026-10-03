@@ -43,6 +43,7 @@ namespace MapRenderState {
 
     // [维度切换] 全屏大地图浏览维度 (-999 表示跟随玩家物理维度，0=主世界, 1=下界, 2=末地)
     inline int bigMapViewDimensionId = -999;
+    inline bool bigMapOverworldCave = false; // 全屏大地图主世界洞穴视图开关 (true=主世界洞穴, false=主世界地表)
 
     inline int GetEffectiveViewDimensionId() {
         if (bigMapViewDimensionId >= 0 && bigMapViewDimensionId <= 2) {
@@ -285,7 +286,7 @@ namespace MapRenderState {
         Hotkey toggleMinimap     = { 0x4E, 0 }; // N: 切换小地图显示
         Hotkey toggleMinimapShape= { 0x59, 0 }; // Y: 切换小地图形状
         Hotkey toggleMinimapRot  = { 0x4A, 0 }; // J: 切换小地图旋转
-        Hotkey holdEntities      = { 0x09, 0 }; // Tab: 显示生物头像 (小地图/大地图)
+        Hotkey holdEntities      = { 0x09, 0 }; // Tab: 放大/显示生物头像（小地图/大地图）
         Hotkey toggleSeedMap     = { 0x4B, 0 }; // K: 切换种子全知地图
         Hotkey enlargeMinimap    = { 0x58, 0 }; // X: 放大小地图 (默认 X 键，避免与原版 Z 键状态效果界面冲突)
         Hotkey centerCamera      = { 0x20, 0 }; // Space: 大地图视角居中对齐玩家
@@ -330,16 +331,19 @@ namespace MapRenderState {
     inline std::atomic<bool> g_enlargeHeld{false}; // 放大小地图按住状态
     inline bool g_enlargeToggled = false;       // 放大小地图切换状态
 
-    // [实体雷达分类过滤] 对应 Xaero's entity_radar_categories (持久化保存)
+    // [实体雷达分类过滤] (持久化保存)
     inline bool radarShowPlayers = true;   // 显示玩家
     inline bool radarShowHostile = true;   // 显示敌对生物
     inline bool radarShowFriendly = true;  // 显示友好/被动生物
     inline bool radarShowItems = false;    // 显示掉落物与载具 (默认关，防止杂乱)
 
-    // [大地图路径点缩放] 对应 Xaero's waypoints_scale (持久化保存)
+    // [大地图路径点缩放] (持久化保存)
     inline float bigMapWaypointScale = 1.0f; // 0.5x ~ 2.5x
 
-    // [小地图指南针方位标] 对应 Xaero's compass & compass_scale (持久化保存)
+    // [大地图生物图标缩放] (持久化保存)
+    inline float bigMapEntityScale = 1.0f; // 0.5x ~ 2.5x
+
+    // [小地图指南针方位标] (持久化保存)
     inline bool showCompass = true;       // 显示小地图东南西北方位标
     inline float compassScale = 1.0f;     // 方位标字号缩放比例 (0.8x ~ 2.0x)
 
@@ -443,29 +447,29 @@ namespace MapRenderState {
     // 防止进程退出阶段访问已释放的 D3D/ImGui 资源导致 0xC0000005 退出崩溃
     inline std::atomic<bool> g_isShuttingDown{false};
 
-    // ==================== 洞穴地图系统 (Xaero's Cave Map 1:1 复刻) ====================
-    // 洞穴模式类型 (对应 Xaero's DEFAULT_CAVE_MODE_TYPE)
+    // ==================== 洞穴地图系统 ====================
+    // 洞穴模式类型
     // 0=Off(关闭), 1=Layered(分层)
     enum class CaveModeType : int { Off = 0, Layered = 1 };
 
-    // 洞穴模式设置 (持久化到 config) — 对齐 Xaero's 设置面板
-    inline int g_caveModeType = (int)CaveModeType::Layered;  // 默认 Layered (Xaero 默认值)
+    // 洞穴模式设置 (持久化到 config)
+    inline int g_caveModeType = (int)CaveModeType::Layered;  // 默认 Layered
     inline bool g_caveTopYAuto = true;                        // Cave Mode Top Y: auto=自动检测, false=手动指定
     inline int g_caveTopY = 64;                               // Top Y: 手动模式下的洞穴顶层Y (默认 64=海平面, 有效范围 [-64,320])
-    inline int g_caveDepth = 30;                               // 洞穴扫描深度 (Xaero: 1-64, 默认 30)
-    inline bool g_legibleCaveMaps = false;                     // 清晰洞穴地图 (Xaero: 默认 false)
+    inline int g_caveDepth = 30;                               // 洞穴扫描深度 (1-64, 默认 30)
+    inline bool g_legibleCaveMaps = false;                     // 清晰洞穴地图 (默认 false)
 
     // 洞穴模式运行时状态 (每帧计算)
     inline bool g_caveModeActive = false;       // 当前是否处于洞穴模式 (玩家在地下)
     inline int g_caveStartY = 0;                // 当前洞穴起始 Y (扫描顶部)
 
-    // ==================== 地形坡度与深度光影系统 (Xaero's Terrain Slopes & Depth) ====================
+    // ==================== 地形坡度与深度光影系统 ====================
     // 0=Default 2D, 1=Legacy, 2=Default 3D (浮雕立体阴影)
     inline int terrainSlopes = 2;
     inline bool terrainDepth = true;
     inline bool adjustHeightForShortBlocks = true;
 
-    // ==================== 探索足迹与个性化 (Xaero's Footsteps & Customization) ====================
+    // ==================== 探索足迹与个性化 ====================
     inline bool showFootsteps = true;
     inline int playerArrowColor = 0; // 0=Red, 1=White, 2=Green, 3=Blue, 4=Yellow, 5=Purple, 6=Black, 7=Cyan
     inline float playerArrowScale = 1.0f; // 玩家箭头大小缩放 (0.50x ~ 2.00x)

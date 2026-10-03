@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Просмотр измерения",
     "DIM_CURRENT_HINT": "(Текущее измерение)",
     "DIM_SWITCH_TOOLTIP": "Переключиться на карту: %s",
+    "DIM_CAVE": "Пещеры",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Переключиться на карту пещер Верхнего мира",
     "DIM_LINKED_PLAYER_POS": "Связ. коорд.: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Иконки сущностей (Миникарта и большая карта)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Значки сущностей: ВЫКЛ (Нажмите для включения)",

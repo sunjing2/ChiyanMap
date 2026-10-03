@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Dimensão visualizada",
     "DIM_CURRENT_HINT": "(Dimensão atual)",
     "DIM_SWITCH_TOOLTIP": "Alternar para o mapa de %s",
+    "DIM_CAVE": "Cavernas",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Alternar para o mapa de cavernas da superfície",
     "DIM_LINKED_PLAYER_POS": "Pos vinculada: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Cabeças de entidades (Minimapa e mapa)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Cabeças de entidades: DESATIVADO (Clique para ativar)",

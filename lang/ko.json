@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "보고 있는 차원",
     "DIM_CURRENT_HINT": "(현재 플레이어 차원)",
     "DIM_SWITCH_TOOLTIP": "%s 월드맵으로 전환",
+    "DIM_CAVE": "동굴",
+    "DIM_SWITCH_TOOLTIP_CAVE": "오버월드 동굴 맵으로 전환",
     "DIM_LINKED_PLAYER_POS": "연결된 좌표: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "엔티티 머리 (미니맵 및 전체 지도)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "엔티티 아이콘: 끔 (클릭하여 켜기)",

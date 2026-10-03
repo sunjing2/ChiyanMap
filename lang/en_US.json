@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Viewing Dimension",
     "DIM_CURRENT_HINT": "(Current Player Dimension)",
     "DIM_SWITCH_TOOLTIP": "Switch to %s World Map",
+    "DIM_CAVE": "Caves",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Switch to Overworld Cave Map",
     "DIM_LINKED_PLAYER_POS": "Linked Pos: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Show Entity Heads (Minimap & Big Map)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Show Entity Heads: OFF (Click to enable)",

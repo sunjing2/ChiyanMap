@@ -669,6 +669,24 @@ namespace LanguageManager {
             {"uk",    "Перемкнути записи смертей"},
             {"vi",    "Bật/tắt Nhật ký Tử vong"}
         }},
+        {"HOTKEY_HOLD_ENTITIES", {
+            {"zh_CN", "放大/显示生物头像（小地图/大地图）"},
+            {"zh_TW", "放大/顯示生物頭像（小地圖/大地圖）"},
+            {"en_US", "Enlarge/Show Entity Heads (Minimap & Big Map)"},
+            {"de",    "Kreaturen-Icons vergrößern/anzeigen (Minikarte & Weltkarte)"},
+            {"es",    "Ampliar/Mostrar iconos de entidades (Minimapa y mapa)"},
+            {"fr",    "Agrandir/Afficher les têtes d'entités (Minicarte et grande carte)"},
+            {"id",    "Perbesar/Tampilkan Ikon Entitas (Peta Kecil & Besar)"},
+            {"it",    "Ingrandisci/Mostra icone entità (Minimappa e mappa grande)"},
+            {"ja",    "エンティティアイコンの拡大/表示 (小/大マップ)"},
+            {"ko",    "개체 아이콘 확대/표시 (미니맵 및 전체 지도)"},
+            {"pt_BR", "Ampliar/Mostrar cabeças de entidades (Minimapa e mapa)"},
+            {"ru",    "Увеличить/показать иконки сущностей (Миникарта и большая карта)"},
+            {"th",    "ขยาย/แสดงไอคอนสิ่งมีชีวิต (แผนที่ย่อและใหญ่)"},
+            {"tr",    "Varlık Kafalarını Büyüt/Göster (Mini ve Büyük Harita)"},
+            {"uk",    "Збільшити/показати значки сутностей (Мінікарта та велика карта)"},
+            {"vi",    "Phóng to/Hiện biểu tượng thực thể (Bản đồ nhỏ & lớn)"}
+        }},
         {"TERRAIN_SLOPES", {
             {"zh_CN", "地形坡度阴影模式"},
             {"zh_TW", "地形坡度陰影模式"},
@@ -778,6 +796,24 @@ namespace LanguageManager {
             {"tr",    "Dünya Haritası Ayarları"},
             {"uk",    "Налаштування мапи світу"},
             {"vi",    "Cài đặt bản đồ thế giới"}
+        }},
+        {"MINIMAP_DISPLAY_SETTINGS", {
+            {"zh_CN", "小地图显示选项"},
+            {"zh_TW", "小地圖顯示選項"},
+            {"en_US", "Minimap Display Options"},
+            {"de",    "Minikarten-Anzeigeoptionen"},
+            {"es",    "Opciones de visualización del minimapa"},
+            {"fr",    "Options d'affichage de la minicarte"},
+            {"id",    "Opsi Tampilan Peta Kecil"},
+            {"it",    "Opzioni di visualizzazione minimappa"},
+            {"ja",    "ミニマップ表示設定"},
+            {"ko",    "미니맵 표시 옵션"},
+            {"pt_BR", "Opções de Exibição do Minimapa"},
+            {"ru",    "Параметры отображения миникарты"},
+            {"th",    "ตัวเลือกการแสดงผลแผนที่ย่อ"},
+            {"tr",    "Mini Harita Görüntüleme Seçenekleri"},
+            {"uk",    "Параметри відображення мінікарти"},
+            {"vi",    "Tùy chọn hiển thị bản đồ nhỏ"}
         }},
         {"BIGMAP_DISPLAY_SETTINGS", {
             {"zh_CN", "大地图显示选项"},
@@ -976,6 +1012,42 @@ namespace LanguageManager {
             {"tr",    "Bilinmeyen Boyut"},
             {"uk",    "Невідомий вимір"},
             {"vi",    "Không gian không xác định"}
+        }},
+        {"DIM_CAVE", {
+            {"zh_CN", "洞穴"},
+            {"zh_TW", "洞穴"},
+            {"en_US", "Caves"},
+            {"de",    "Höhlen"},
+            {"es",    "Cuevas"},
+            {"fr",    "Grottes"},
+            {"id",    "Gua"},
+            {"it",    "Grotte"},
+            {"ja",    "洞窟"},
+            {"ko",    "동굴"},
+            {"pt_BR", "Cavernas"},
+            {"ru",    "Пещеры"},
+            {"th",    "ถ้ำ"},
+            {"tr",    "Mağaralar"},
+            {"uk",    "Печери"},
+            {"vi",    "Hang động"}
+        }},
+        {"DIM_SWITCH_TOOLTIP_CAVE", {
+            {"zh_CN", "切换查看主世界洞穴地图"},
+            {"zh_TW", "切換檢視主世界洞穴地圖"},
+            {"en_US", "Switch to Overworld Cave Map"},
+            {"de",    "Zu Oberwelt-Höhlenkarte wechseln"},
+            {"es",    "Cambiar al mapa de cuevas del mundo principal"},
+            {"fr",    "Afficher la carte des grottes de la surface"},
+            {"id",    "Beralih ke Peta Gua Overworld"},
+            {"it",    "Passa alla mappa delle grotte della superficie"},
+            {"ja",    "オーバーワールドの洞窟マップに切り替え"},
+            {"ko",    "오버월드 동굴 맵으로 전환"},
+            {"pt_BR", "Alternar para o mapa de cavernas da superfície"},
+            {"ru",    "Переключиться на карту пещер Верхнего мира"},
+            {"th",    "สลับไปยังแผนที่ถ้ำโอเวอร์เวิลด์"},
+            {"tr",    "Normal Dünya Mağara Haritasına geç"},
+            {"uk",    "Перемкнутися на карту печер Звичайного світу"},
+            {"vi",    "Chuyển sang bản đồ hang động thế giới thực"}
         }},
         {"RESET", {
             {"zh_CN", "重置为默认值"},
@@ -1372,6 +1444,24 @@ namespace LanguageManager {
             {"tr",    "Dünya Haritası Yol Noktası Ölçeği"},
             {"uk",    "Масштаб міток на мапі світу"},
             {"vi",    "Tỷ lệ điểm trên bản đồ thế giới"}
+        }},
+        {"BIGMAP_ENTITY_SCALE", {
+            {"zh_CN", "大地图生物头像缩放"},
+            {"zh_TW", "大地圖生物頭像縮放"},
+            {"en_US", "World Map Entity Scale"},
+            {"de",    "Kreaturen-Skalierung auf Weltkarte"},
+            {"es",    "Escala de entidades en mapa mundial"},
+            {"fr",    "Échelle des entités sur la carte"},
+            {"id",    "Skala Entitas Peta Dunia"},
+            {"it",    "Scala entità mappa del mondo"},
+            {"ja",    "ワールドマップ生物アイコン縮尺"},
+            {"ko",    "월드맵 개체 아이콘 크기 배율"},
+            {"pt_BR", "Escala de Entidades no Mapa Mundial"},
+            {"ru",    "Масштаб сущностей на карте мира"},
+            {"th",    "สเกลไอคอนสิ่งมีชีวิตบนแผนที่โลก"},
+            {"tr",    "Dünya Haritası Varlık Ölçeği"},
+            {"uk",    "Масштаб сутностей на мапі світу"},
+            {"vi",    "Tỷ lệ thực thể trên bản đồ thế giới"}
         }},
         {"SHOW_COMPASS", {
             {"zh_CN", "显示指南针方位标 (东南西北)"},
@@ -1917,6 +2007,7 @@ namespace LanguageManager {
                 MapRenderState::radarShowFriendly = j.value("radarShowFriendly", true);
                 MapRenderState::radarShowItems = j.value("radarShowItems", false);
                 MapRenderState::bigMapWaypointScale = std::clamp(j.value("bigMapWaypointScale", 1.0f), 0.5f, 2.5f);
+                MapRenderState::bigMapEntityScale = std::clamp(j.value("bigMapEntityScale", 1.0f), 0.5f, 2.5f);
                 MapRenderState::bigMapShowDisabledWaypoints = j.value("bigMapShowDisabledWaypoints", true);
                 MapRenderState::showCompass = j.value("showCompass", true);
                 MapRenderState::compassScale = std::clamp(j.value("compassScale", 1.0f), 0.8f, 2.0f);
@@ -2068,6 +2159,7 @@ namespace LanguageManager {
         j["radarShowFriendly"] = MapRenderState::radarShowFriendly;
         j["radarShowItems"] = MapRenderState::radarShowItems;
         j["bigMapWaypointScale"] = MapRenderState::bigMapWaypointScale;
+        j["bigMapEntityScale"] = MapRenderState::bigMapEntityScale;
         j["bigMapShowDisabledWaypoints"] = MapRenderState::bigMapShowDisabledWaypoints;
         j["showCompass"] = MapRenderState::showCompass;
         j["compassScale"] = MapRenderState::compassScale;
@@ -2216,6 +2308,8 @@ namespace LanguageManager {
             {"DIM_NETHER", "Nether"},
             {"DIM_END", "The End"},
             {"DIM_UNKNOWN", "Unknown Dimension"},
+            {"DIM_CAVE", "Caves"},
+            {"DIM_SWITCH_TOOLTIP_CAVE", "Switch to Overworld Cave Map"},
             {"MODERN_DEATH_MANAGER", "Death Records"},
             {"DEATH_POINTS_TITLE", "Death Records (Press 'I' or 'Esc' to Close)##Deaths"},
             {"DEATH_POINTS_EMPTY", "No death records yet."},
@@ -2335,6 +2429,8 @@ namespace LanguageManager {
             {"DIM_NETHER", "下界"},
             {"DIM_END", "末地"},
             {"DIM_UNKNOWN", "未知维度"},
+            {"DIM_CAVE", "洞穴"},
+            {"DIM_SWITCH_TOOLTIP_CAVE", "切换查看主世界洞穴地图"},
             {"MODERN_DEATH_MANAGER", "死亡记录"},
             {"DEATH_POINTS_TITLE", "死亡记录 (按 'I' 或 'Esc' 关闭)##Deaths"},
             {"DEATH_POINTS_EMPTY", "暂无死亡记录。"},
@@ -2454,6 +2550,8 @@ namespace LanguageManager {
             {"DIM_NETHER", "下界"},
             {"DIM_END", "終界"},
             {"DIM_UNKNOWN", "未知維度"},
+            {"DIM_CAVE", "洞穴"},
+            {"DIM_SWITCH_TOOLTIP_CAVE", "切換檢視主世界洞穴地圖"},
             {"MODERN_DEATH_MANAGER", "死亡紀錄"},
             {"DEATH_POINTS_TITLE", "死亡紀錄 (按 'I' 或 'Esc' 關閉)##Deaths"},
             {"DEATH_POINTS_EMPTY", "暫無死亡紀錄。"},
@@ -2545,62 +2643,239 @@ namespace LanguageManager {
         return g_translationCache[key].c_str();
     }
 
+    struct BuiltinEntityEntry {
+        const char* id;
+        const char* zh_CN;
+        const char* zh_TW;
+        const char* en_US;
+        const char* ja;
+        const char* ko;
+        const char* ru;
+    };
+
+    static std::string GetBuiltinEntityName(const std::string& clean, const std::string& langCode) {
+        static const BuiltinEntityEntry s_entries[] = {
+            // 敌对生物
+            {"zombie", "僵尸", "殭屍", "Zombie", "ゾンビ", "좀비", "Зомби"},
+            {"skeleton", "骷髅", "骷髏", "Skeleton", "スケルトン", "스켈레톤", "Скелет"},
+            {"creeper", "苦力怕", "苦力怕", "Creeper", "クリーパー", "크리퍼", "Крипер"},
+            {"spider", "蜘蛛", "蜘蛛", "Spider", "クモ", "거미", "Паук"},
+            {"cave_spider", "洞穴蜘蛛", "洞穴蜘蛛", "Cave Spider", "洞窟グモ", "동굴 거미", "Пещерный паук"},
+            {"enderman", "末影人", "終界使者", "Enderman", "エンダーマン", "엔더맨", "Эндермен"},
+            {"witch", "女巫", "女巫", "Witch", "魔女", "마녀", "Ведьма"},
+            {"slime", "史莱姆", "史萊姆", "Slime", "スライム", "슬라임", "Слизень"},
+            {"magma_cube", "岩浆怪", "岩漿怪", "Magma Cube", "マグマキューブ", "마그마 큐브", "Лавовый куб"},
+            {"ghast", "恶魂", "地獄幽靈", "Ghast", "ガスト", "가스트", "Гаст"},
+            {"blaze", "烈焰人", "烈焰使者", "Blaze", "ブレイズ", "블레이즈", "Ифрит"},
+            {"wither", "凋灵", "凋零怪", "Wither", "ウィザー", "위더", "Иссушитель"},
+            {"wither_skeleton", "凋灵骷髅", "凋零骷髏", "Wither Skeleton", "ウィザースケルトン", "위더 스켈레톤", "Визер-скелет"},
+            {"ender_dragon", "末影龙", "終界龍", "Ender Dragon", "エンダードラゴン", "엔더 드래곤", "Эндер-дракон"},
+            {"phantom", "幻翼", "夜魅", "Phantom", "ファントム", "팬텀", "Фантом"},
+            {"drowned", "溺尸", "溺屍", "Drowned", "ドラウンド", "드라운드", "Утопленник"},
+            {"husk", "尸壳", "屍殼", "Husk", "ハスク", "허스크", "Кадавр"},
+            {"stray", "流浪者", "流浪者", "Stray", "ストレイ", "스트레이", "Зимогор"},
+            {"shulker", "潜影贝", "界伏蚌", "Shulker", "シュルカー", "셜커", "Шалкер"},
+            {"guardian", "守卫者", "深海守衛", "Guardian", "ガーディアン", "가ди언", "Страж"},
+            {"elder_guardian", "远古守卫者", "遠古深海守衛", "Elder Guardian", "エルダーガーディアン", "엘더 가ди언", "Древний страж"},
+            {"silverfish", "蠹虫", "蠹蟲", "Silverfish", "シルバーフィッシュ", "좀벌레", "Чешуйница"},
+            {"endermite", "末影螨", "終界蟎", "Endermite", "エンダーマイト", "엔더마이트", "Эндермит"},
+            {"piglin", "猪灵", "豬布林", "Piglin", "ピグリン", "피글린", "Пиглин"},
+            {"piglin_brute", "猪灵蛮兵", "豬布林蠻兵", "Piglin Brute", "ピグリンブルート", "피글린 브루트", "Жестокий пиглин"},
+            {"zombified_piglin", "僵尸猪灵", "殭屍豬布林", "Zombified Piglin", "ゾンビピグリン", "좀비화 피글린", "Зомбифицированный пиглин"},
+            {"zombie_pigman", "僵尸猪人", "殭屍豬人", "Zombie Pigman", "ゾンビピッグマン", "좀비 피그맨", "Зомби-свиночеловек"},
+            {"hoglin", "疣猪兽", "厚皮豬", "Hoglin", "ホグリン", "호글린", "Хоглин"},
+            {"zoglin", "僵尸疣猪兽", "殭屍厚皮豬", "Zoglin", "ゾグリン", "조글린", "Зоглин"},
+            {"pillager", "掠夺者", "掠奪者", "Pillager", "ピリジャー", "약탈자", "Разбойник"},
+            {"vindicator", "卫道士", "衛道士", "Vindicator", "ヴィンディケーター", "변명자", "Поборник"},
+            {"evoker", "唤魔者", "喚魔者", "Evoker", "エヴォーカー", "소환사", "Вызыватель"},
+            {"ravager", "劫掠兽", "破壞獸", "Ravager", "ラヴェジャー", "파괴수", "Разоритель"},
+            {"vex", "恼鬼", "惱鬼", "Vex", "ヴェックス", "벡스", "Досаждатель"},
+            {"warden", "监守者", "伏守者", "Warden", "ウォーデン", "워든", "Хранитель"},
+            {"breeze", "旋风人", "旋風使者", "Breeze", "ブリーズ", "브리즈", "Бриз"},
+            {"bogged", "沼骸", "沼骸", "Bogged", "ボグド", "보그드", "Болотник"},
+            {"creaking", "嘎吱怪", "吱嘎怪", "Creaking", "クリーキング", "크리킹", "Скрипун"},
+            {"happy_ghast", "快乐恶魂", "快樂地獄幽靈", "Happy Ghast", "ハッピーガスト", "행복한 가스트", "Счастливый гаст"},
+            {"illusioner", "幻术师", "幻術師", "Illusioner", "イリュージョナー", "환술사", "Иллюзионист"},
+
+            // 被动与中立生物
+            {"pig", "猪", "豬", "Pig", "ブタ", "돼지", "Свинья"},
+            {"cow", "牛", "牛", "Cow", "ウシ", "소", "Корова"},
+            {"sheep", "羊", "羊", "Sheep", "ヒツジ", "양", "Овца"},
+            {"chicken", "鸡", "雞", "Chicken", "ニワトリ", "닭", "Курица"},
+            {"wolf", "狼", "狼", "Wolf", "オオカミ", "늑대", "Волк"},
+            {"fox", "狐狸", "狐狸", "Fox", "キツネ", "여우", "Лисица"},
+            {"cat", "猫", "貓", "Cat", "ネコ", "고양이", "Кот"},
+            {"ocelot", "豹猫", "豹貓", "Ocelot", "ヤマネコ", "오셀롯", "Оцелот"},
+            {"horse", "马", "馬", "Horse", "ウマ", "말", "Лошадь"},
+            {"donkey", "驴", "驢", "Donkey", "ロバ", "당나귀", "Осёл"},
+            {"mule", "骡", "騾", "Mule", "ラバ", "노새", "Мул"},
+            {"skeleton_horse", "骷髅马", "骷髏馬", "Skeleton Horse", "スケルトンホース", "스켈레톤 말", "Лошадь-скелет"},
+            {"zombie_horse", "僵尸马", "殭屍馬", "Zombie Horse", "ゾンビホース", "좀비 말", "Лошадь-зомби"},
+            {"rabbit", "兔子", "兔子", "Rabbit", "ウサギ", "토끼", "Кролик"},
+            {"polar_bear", "北极熊", "北極熊", "Polar Bear", "シロクマ", "북극곰", "Белый медведь"},
+            {"panda", "熊猫", "貓熊", "Panda", "パンダ", "판다", "Панда"},
+            {"bee", "蜜蜂", "蜜蜂", "Bee", "ハチ", "꿀벌", "Пчела"},
+            {"bat", "蝙蝠", "蝙蝠", "Bat", "コウモリ", "박쥐", "Летучая мышь"},
+            {"parrot", "鹦鹉", "鸚鵡", "Parrot", "オウム", "앵무새", "Попугай"},
+            {"llama", "羊驼", "駱駝", "Llama", "ラマ", "라마", "Лама"},
+            {"trader_llama", "行商羊驼", "流浪商人的駱駝", "Trader Llama", "行商人のラマ", "상인 라마", "Лама торговца"},
+            {"strider", "炽足兽", "熾足獸", "Strider", "ストライダー", "스트라이더", "Лавомерка"},
+            {"goat", "山羊", "山羊", "Goat", "ヤギ", "염소", "Коза"},
+            {"dolphin", "海豚", "海豚", "Dolphin", "イルカ", "돌고래", "Дельфин"},
+            {"squid", "鱿鱼", "烏賊", "Squid", "イカ", "오징어", "Спрут"},
+            {"glow_squid", "发光鱿鱼", "發光烏賊", "Glow Squid", "ヒカリイカ", "발광 오징어", "Светящийся спрут"},
+            {"turtle", "海龟", "海龜", "Turtle", "カメ", "거북", "Черепаха"},
+            {"axolotl", "美西螈", "六角恐龍", "Axolotl", "ウーパールーパー", "아홀로틀", "Аксилотль"},
+            {"frog", "青蛙", "青蛙", "Frog", "カエル", "개구리", "Лягушка"},
+            {"tadpole", "蝌蚪", "蝌蚪", "Tadpole", "オタマジャクシ", "올챙이", "Головастик"},
+            {"allay", "悦灵", "悅靈", "Allay", "アレイ", "알레이", "Эллей"},
+            {"camel", "骆驼", "單峰駱駝", "Camel", "ラクダ", "낙타", "Верблюд"},
+            {"sniffer", "嗅探兽", "嗅探獸", "Sniffer", "スニッファー", "스니퍼", "Нюхач"},
+            {"armadillo", "犰狳", "犰狳", "Armadillo", "アルマジロ", "아르마딜로", "Броненосец"},
+            {"iron_golem", "铁傀儡", "鐵魔像", "Iron Golem", "アイアンゴーレム", "철 골렘", "Железный голем"},
+            {"snow_golem", "雪傀儡", "雪魔像", "Snow Golem", "スノーゴーレム", "눈 골렘", "Снежный голем"},
+            {"mooshroom", "哞菇", "哞菇", "Mooshroom", "ムーシュルーム", "무슈룸", "Грибная корова"},
+            {"villager", "村民", "村民", "Villager", "村人", "주민", "Деревенский житель"},
+            {"wandering_trader", "流浪商人", "流浪商人", "Wandering Trader", "行商人", "떠돌이 상인", "Странствующий торговец"},
+            {"zombie_villager", "僵尸村民", "殭屍村民", "Zombie Villager", "ゾンビ村人", "좀비 주민", "Зомби-житель"},
+            {"pufferfish", "河豚", "河豚", "Pufferfish", "フグ", "복어", "Иглобрюх"},
+            {"cod", "鳕鱼", "鱈魚", "Cod", "タラ", "대구", "Треска"},
+            {"salmon", "鲑鱼", "鮭魚", "Salmon", "サケ", "연어", "Лосось"},
+            {"tropical_fish", "热带鱼", "熱帶魚", "Tropical Fish", "熱帯魚", "열대어", "Тропическая рыба"},
+            {"tropicalfish", "热带鱼", "熱帶魚", "Tropical Fish", "熱帯魚", "열대어", "Тропическая рыба"},
+
+            // 掉落物、载具与物品
+            {"item", "掉落物", "掉落物", "Dropped Item", "ドロップアイテム", "아이템", "Предмет"},
+            {"xp_orb", "经验球", "經驗球", "Experience Orb", "経験値オーブ", "경험치 구슬", "Сфера опыта"},
+            {"boat", "船", "船", "Boat", "ボート", "보트", "Лодка"},
+            {"chest_boat", "运输船", "儲物箱船", "Boat with Chest", "チェスト付きボート", "상자가 실린 보트", "Лодка с сундуком"},
+            {"minecart", "矿车", "礦車", "Minecart", "トロッコ", "광산 수레", "Вагонетка"},
+            {"chest_minecart", "运输矿车", "儲物箱礦車", "Minecart with Chest", "チェスト付きトロッコ", "상자가 실린 광산 수레", "Вагонетка с сундуком"},
+            {"hopper_minecart", "漏斗矿车", "漏斗礦車", "Minecart with Hopper", "ホッパー付きトロッコ", "깔때기가 실린 광산 수레", "Вагонетка с воронкой"},
+            {"tnt_minecart", "TNT矿车", "TNT礦車", "Minecart with TNT", "TNT付きトロッコ", "TNT가 실린 광산 수레", "Вагонетка с динамитом"},
+            {"furnace_minecart", "动力矿车", "熔爐礦車", "Minecart with Furnace", "かまど付きトロッコ", "화로가 실린 광산 수레", "Самоходная вагонетка"},
+            {"command_block_minecart", "命令方块矿车", "指令方塊礦車", "Minecart with Command Block", "コマンドブロック付きトロッコ", "명령 블록이 실린 광산 수레", "Вагонетка с командным блоком"},
+            {"armor_stand", "盔甲架", "盔甲架", "Armor Stand", "防具立て", "갑옷 거치대", "Стойка для доспехов"},
+            {"arrow", "箭", "箭", "Arrow", "矢", "화살", "Стрела"},
+            {"spectral_arrow", "光灵箭", "光靈箭", "Spectral Arrow", "光の矢", "분광 화살", "Спектральная стрела"},
+            {"trident", "三叉戟", "三叉戟", "Trident", "トライデント", "삼지창", "Трезубец"},
+            {"snowball", "雪球", "雪球", "Snowball", "雪玉", "눈덩이", "Снежок"},
+            {"egg", "鸡蛋", "雞蛋", "Egg", "卵", "달걀", "Яйцо"},
+            {"ender_pearl", "末影珍珠", "終界珍珠", "Ender Pearl", "エンダーパール", "엔더 진주", "Эндер-жемчуг"},
+            {"splash_potion", "喷溅药水", "濺射藥水", "Splash Potion", "スプラッシュポーション", "투척용 물약", "Взрывное зелье"},
+            {"lingering_potion", "滞留药水", "滯留藥水", "Lingering Potion", "残留ポーション", "잔류형 물약", "Оседающее зелье"},
+            {"experience_bottle", "附魔之瓶", "附魔之瓶", "Bottle o' Enchanting", "エンチャントの瓶", "경험치 병", "Пузырёк опыта"},
+            {"tnt", "TNT", "TNT", "TNT", "TNT", "TNT", "Динамит"},
+            {"falling_block", "下落方块", "下落方塊", "Falling Block", "落下中のブロック", "떨어지는 블록", "Падающий блок"},
+            {"end_crystal", "末影水晶", "終界水晶", "End Crystal", "エンドクリスタル", "엔더 수정", "Кристалл Энда"},
+            {"lightning_bolt", "雷电", "雷電", "Lightning Bolt", "雷", "번개", "Молния"},
+            {"player", "玩家", "玩家", "Player", "プレイヤー", "플레이어", "Игрок"},
+
+            // 村民职业
+            {"armorer", "盔甲匠", "盔甲匠", "Armorer", "防具鍛冶", "갑옷 제조인", "Бронник"},
+            {"butcher", "屠夫", "屠夫", "Butcher", "肉屋", "도살업자", "Мясник"},
+            {"cartographer", "制图师", "製圖師", "Cartographer", "製図家", "지도제작자", "Картограф"},
+            {"cleric", "牧师", "牧師", "Cleric", "聖職者", "성직자", "Священник"},
+            {"farmer", "农民", "農民", "Farmer", "農民", "농부", "Фермер"},
+            {"fisherman", "渔夫", "漁夫", "Fisherman", "釣り人", "어부", "Рыбак"},
+            {"fletcher", "制箭师", "製箭師", "Fletcher", "矢師", "화살 제조인", "Лучник"},
+            {"leatherworker", "皮匠", "皮匠", "Leatherworker", "革細工師", "가죽 세공인", "Кожевник"},
+            {"librarian", "图书管理员", "圖書管理員", "Librarian", "司書", "사서", "Библиотекарь"},
+            {"shepherd", "牧羊人", "牧羊人", "Shepherd", "羊飼い", "양치기", "Пастух"},
+            {"toolsmith", "武器匠", "武器匠", "Toolsmith", "道具鍛冶", "도구 대장장이", "Оружейник"},
+            {"weaponsmith", "锻造匠", "鍛造匠", "Weaponsmith", "武器鍛冶", "무기 대장장이", "Инструментальщик"}
+        };
+
+        for (const auto& e : s_entries) {
+            if (clean == e.id) {
+                if (langCode == "zh_CN") return e.zh_CN;
+                if (langCode == "zh_TW") return e.zh_TW;
+                if (langCode == "ja") return e.ja;
+                if (langCode == "ko") return e.ko;
+                if (langCode == "ru") return e.ru;
+                return e.en_US;
+            }
+        }
+        return "";
+    }
+
     std::string GetEntityDisplayName(const std::string& typeName, const std::string& nameTag) {
-        if (!nameTag.empty()) {
-            return nameTag;
-        }
-        if (typeName.empty()) {
-            return "";
-        }
+        std::string localizedType;
+        if (!typeName.empty()) {
+            std::string clean = typeName;
+            if (clean.rfind("minecraft:", 0) == 0) {
+                clean = clean.substr(10);
+            }
 
-        std::string clean = typeName;
-        if (clean.rfind("minecraft:", 0) == 0) {
-            clean = clean.substr(10);
-        }
+            for (auto& c : clean) {
+                if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+            }
 
-        for (auto& c : clean) {
-            if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
-        }
-
-        std::string upperKey = "ENTITY_" + clean;
-        for (auto& c : upperKey) {
-            if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
-        }
-
-        const char* trans = GetText(upperKey);
-        if (trans && std::string(trans) != upperKey) {
-            return trans;
-        }
-
-        std::string altKey = "entity." + clean + ".name";
-        const char* altTrans = GetText(altKey);
-        if (altTrans && std::string(altTrans) != altKey) {
-            return altTrans;
-        }
-
-        if (clean.size() > 3 && clean.substr(clean.size() - 3) == "_v2") {
-            std::string baseClean = clean.substr(0, clean.size() - 3);
-            std::string baseUpper = "ENTITY_" + baseClean;
-            for (auto& c : baseUpper) {
+            // 1. 尝试从语言系统读取 ENTITY_xxx
+            std::string upperKey = "ENTITY_" + clean;
+            for (auto& c : upperKey) {
                 if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
             }
-            const char* baseTrans = GetText(baseUpper);
-            if (baseTrans && std::string(baseTrans) != baseUpper) {
-                return baseTrans;
+
+            const char* trans = GetText(upperKey);
+            if (trans && std::string(trans) != upperKey) {
+                localizedType = trans;
+            }
+
+            // 2. 尝试从内置生物多语言表读取
+            if (localizedType.empty()) {
+                localizedType = GetBuiltinEntityName(clean, g_currentLanguage);
+            }
+
+            // 3. 处理 _v2 后缀 (如 villager_v2, zombie_villager_v2)
+            if (localizedType.empty() && clean.size() > 3 && clean.substr(clean.size() - 3) == "_v2") {
+                std::string baseClean = clean.substr(0, clean.size() - 3);
+                std::string baseUpper = "ENTITY_" + baseClean;
+                for (auto& c : baseUpper) {
+                    if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+                }
+                const char* baseTrans = GetText(baseUpper);
+                if (baseTrans && std::string(baseTrans) != baseUpper) {
+                    localizedType = baseTrans;
+                } else {
+                    localizedType = GetBuiltinEntityName(baseClean, g_currentLanguage);
+                }
+            }
+
+            // 4. 尝试 entity.xxx.name
+            if (localizedType.empty()) {
+                std::string altKey = "entity." + clean + ".name";
+                const char* altTrans = GetText(altKey);
+                if (altTrans && std::string(altTrans) != altKey) {
+                    localizedType = altTrans;
+                }
+            }
+
+            // 5. 兜底英文首字母大写
+            if (localizedType.empty()) {
+                std::string fallback = clean;
+                bool capNext = true;
+                for (size_t i = 0; i < fallback.size(); ++i) {
+                    if (fallback[i] == '_') {
+                        fallback[i] = ' ';
+                        capNext = true;
+                    } else if (capNext) {
+                        if (fallback[i] >= 'a' && fallback[i] <= 'z') fallback[i] = (char)(fallback[i] - 'a' + 'A');
+                        capNext = false;
+                    }
+                }
+                localizedType = fallback;
             }
         }
 
-        std::string fallback = clean;
-        bool capNext = true;
-        for (size_t i = 0; i < fallback.size(); ++i) {
-            if (fallback[i] == '_') {
-                fallback[i] = ' ';
-                capNext = true;
-            } else if (capNext) {
-                if (fallback[i] >= 'a' && fallback[i] <= 'z') fallback[i] = (char)(fallback[i] - 'a' + 'A');
-                capNext = false;
+        // 如果被命名牌命名过，显示 "命名牌名称 (生物类型)"
+        if (!nameTag.empty()) {
+            if (localizedType.empty() || nameTag == localizedType) {
+                return nameTag;
             }
+            return nameTag + " (" + localizedType + ")";
         }
-        return fallback;
+
+        return localizedType;
     }
 }

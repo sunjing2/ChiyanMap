@@ -70,6 +70,12 @@ void shutdownCacheWriteThread() {
     ShutdownCacheWriteThread();
 }
 
+// 非 inline 包装: 供 ChiyanMap::enable() 提前初始化 DXGI 与输入底层钩子，
+// 避免将耗时初始化推迟到主菜单首次渲染帧导致卡顿
+bool initDX11Hook() {
+    return DX11Hook::init();
+}
+
 // 非 inline 包装: ChiyanMap.cpp 无法包含 DX11Hook.h (会传递包含 PlayerHook.h 导致多重定义),
 // 通过此包装函数桥接调用 inline 的 DX11Hook::shutdown()
 void shutdownDX11Hook() {

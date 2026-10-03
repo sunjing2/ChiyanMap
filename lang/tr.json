@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Görüntülenen Boyut",
     "DIM_CURRENT_HINT": "(Mevcut Boyut)",
     "DIM_SWITCH_TOOLTIP": "%s Dünya Haritasına geç",
+    "DIM_CAVE": "Mağaralar",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Normal Dünya Mağara Haritasına geç",
     "DIM_LINKED_PLAYER_POS": "Bağlantılı Konum: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Varlık Kafaları (Mini ve Büyük Harita)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Varlık Kafaları: KAPALI (Etkinleştirmek için tıkla)",

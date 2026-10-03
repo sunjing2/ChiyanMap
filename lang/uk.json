@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Перегляд виміру",
     "DIM_CURRENT_HINT": "(Поточний вимір)",
     "DIM_SWITCH_TOOLTIP": "Перемкнутися на карту: %s",
+    "DIM_CAVE": "Печери",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Перемкнутися на карту печер Звичайного світу",
     "DIM_LINKED_PLAYER_POS": "Пов'язана поз.: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Значки сутностей (Мінікарта та велика карта)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Значки істот: ВИМК (Натисніть для увімкнення)",

@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Dimensione visualizzata",
     "DIM_CURRENT_HINT": "(Dimensione attuale)",
     "DIM_SWITCH_TOOLTIP": "Passa alla mappa di %s",
+    "DIM_CAVE": "Grotte",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Passa alla mappa delle grotte della superficie",
     "DIM_LINKED_PLAYER_POS": "Pos collegata: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Icone entità (Minimappa e mappa grande)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Icone entità: DISATTIVATO (Fai clic per attivare)",

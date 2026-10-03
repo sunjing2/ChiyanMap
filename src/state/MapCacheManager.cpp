@@ -71,6 +71,149 @@ namespace MapCacheManager {
         }
     }
 
+    // ==========================================
+    // [自愈引擎] 检测并修复历史版本中因阴影递归乘算而崩塌的黑色树冠残影与白色爆点
+    // ==========================================
+    static void SanitizeLoadedRegionColors(RegionData& reg, bool isCave) {
+        if (isCave) return; // 仅对主世界地表执行自愈
+
+        int corruptBlackCount = 0;
+        int corruptWhiteCount = 0;
+
+        for (int i = 0; i < REGION_SIZE * REGION_SIZE; ++i) {
+            uint8_t a = reg.colors[i * 4 + 3];
+            if (a < 10) continue;
+            int16_t h = reg.heights[i];
+            if (h < 55) continue;
+
+            uint8_t r = reg.colors[i * 4 + 0];
+            uint8_t g = reg.colors[i * 4 + 1];
+            uint8_t b = reg.colors[i * 4 + 2];
+
+            if (r <= 5 && g <= 6 && b <= 5) {
+                corruptBlackCount++;
+            } else if (r >= 250 && g >= 250 && b >= 250) {
+                corruptWhiteCount++;
+            }
+        }
+
+        // 仅当检测到严重衰减特征（至少30个纯黑像素或黑白斑点交错）时启动修复
+        if (corruptBlackCount < 30) return;
+
+        bool healedAny = false;
+
+        auto isBadPixel = [&](int x, int z) -> bool {
+            int idx = (z * REGION_SIZE + x) * 4;
+            if (reg.colors[idx + 3] < 10) return false;
+            int16_t h = reg.heights[z * REGION_SIZE + x];
+            if (h < 55) return false;
+            uint8_t r = reg.colors[idx + 0];
+            uint8_t g = reg.colors[idx + 1];
+            uint8_t b = reg.colors[idx + 2];
+            return (r <= 5 && g <= 6 && b <= 5) || (r >= 250 && g >= 250 && b >= 250);
+        };
+
+        for (int z = 0; z < REGION_SIZE; ++z) {
+            for (int x = 0; x < REGION_SIZE; ++x) {
+                if (!isBadPixel(x, z)) continue;
+
+                int idx = (z * REGION_SIZE + x) * 4;
+                int16_t currentY = reg.heights[z * REGION_SIZE + x];
+
+                uint32_t sumR = 0, sumG = 0, sumB = 0;
+                int validNeighbors = 0;
+
+                for (int radius = 1; radius <= 3 && validNeighbors == 0; ++radius) {
+                    for (int dz = -radius; dz <= radius; ++dz) {
+                        int nz = z + dz;
+                        if (nz < 0 || nz >= REGION_SIZE) continue;
+                        for (int dx = -radius; dx <= radius; ++dx) {
+                            if (dx == 0 && dz == 0) continue;
+                            int nx = x + dx;
+                            if (nx < 0 || nx >= REGION_SIZE) continue;
+
+                            int nIdx = (nz * REGION_SIZE + nx) * 4;
+                            if (reg.colors[nIdx + 3] < 10) continue;
+                            int16_t nh = reg.heights[nz * REGION_SIZE + nx];
+                            if (std::abs(currentY - nh) > 8) continue;
+
+                            uint8_t nr = reg.colors[nIdx + 0];
+                            uint8_t ng = reg.colors[nIdx + 1];
+                            uint8_t nb = reg.colors[nIdx + 2];
+
+                            // 排除同样损坏的像素和水体
+                            if ((nr <= 5 && ng <= 6 && nb <= 5) || (nr >= 250 && ng >= 250 && nb >= 250)) continue;
+                            if (nb > 120 && nb > ng && nb > nr) continue;
+
+                            sumR += nr;
+                            sumG += ng;
+                            sumB += nb;
+                            validNeighbors++;
+                        }
+                    }
+                }
+
+                if (validNeighbors > 0) {
+                    reg.colors[idx + 0] = (uint8_t)(sumR / validNeighbors);
+                    reg.colors[idx + 1] = (uint8_t)(sumG / validNeighbors);
+                    reg.colors[idx + 2] = (uint8_t)(sumB / validNeighbors);
+                    healedAny = true;
+                } else {
+                    int cellX = x / BIOME_CELL_SIZE;
+                    int cellZ = z / BIOME_CELL_SIZE;
+                    int bIdx = cellZ * BIOME_CELLS_PER_REGION + cellX;
+                    std::string bName;
+                    if (bIdx >= 0 && bIdx < (int)sizeof(reg.biomeCells)) {
+                        uint8_t bId = reg.biomeCells[bIdx];
+                        if (bId < reg.biomeTable.size()) {
+                            bName = reg.biomeTable[bId];
+                        }
+                    }
+
+                    if (bName.find("taiga") != std::string::npos || bName.find("spruce") != std::string::npos || bName.find("pine") != std::string::npos) {
+                        reg.colors[idx + 0] = 45; reg.colors[idx + 1] = 75; reg.colors[idx + 2] = 45;
+                    } else if (bName.find("birch") != std::string::npos) {
+                        reg.colors[idx + 0] = 100; reg.colors[idx + 1] = 140; reg.colors[idx + 2] = 60;
+                    } else if (bName.find("desert") != std::string::npos) {
+                        reg.colors[idx + 0] = 214; reg.colors[idx + 1] = 204; reg.colors[idx + 2] = 150;
+                    } else {
+                        reg.colors[idx + 0] = 60; reg.colors[idx + 1] = 105; reg.colors[idx + 2] = 45;
+                    }
+                    healedAny = true;
+                }
+            }
+        }
+
+        if (healedAny) {
+            reg.dirty = true;
+            reg.textureDirty = true;
+        }
+    }
+
+    static bool LoadRegionFromFile(const std::string& filePath, RegionData& reg, bool isCave) {
+        std::ifstream in(filePath, std::ios::binary | std::ios::ate);
+        if (!in) return false;
+        auto fileSize = in.tellg();
+        if (fileSize < (std::streamoff)sizeof(reg.colors)) return false;
+
+        in.seekg(0, std::ios::beg);
+        in.read((char*)reg.colors, sizeof(reg.colors));
+
+        if (fileSize >= (std::streamoff)(sizeof(reg.colors) + sizeof(reg.heights))) {
+            in.read((char*)reg.heights, sizeof(reg.heights));
+            for (int i = 0; i < REGION_SIZE * REGION_SIZE; ++i) {
+                if (reg.colors[i * 4 + 3] < 10) {
+                    reg.heights[i] = HEIGHT_UNKNOWN;
+                }
+            }
+        }
+        ReadBiomeSection(in, reg, fileSize, (std::streamoff)(sizeof(reg.colors) + sizeof(reg.heights)));
+
+        SanitizeLoadedRegionColors(reg, isCave);
+        reg.textureDirty = true;
+        return true;
+    }
+
     void IOWorkerThread() {
         auto lastSaveTime = std::chrono::steady_clock::now();
 
@@ -100,25 +243,7 @@ namespace MapCacheManager {
                 std::string filePath = dir + "region_" + std::to_string(rx) + "_" + std::to_string(rz) + ".bin";
 
                 RegionData* newRegion = new RegionData();
-                std::ifstream in(filePath, std::ios::binary | std::ios::ate);
-                if (in) {
-                    auto fileSize = in.tellg();
-                    in.seekg(0, std::ios::beg);
-                    in.read((char*)newRegion->colors, sizeof(newRegion->colors));
-                    // 新格式：colors + heights；旧格式仅 colors（heights 保持 HEIGHT_UNKNOWN）
-                    if (fileSize >= (std::streamoff)(sizeof(newRegion->colors) + sizeof(newRegion->heights))) {
-                        in.read((char*)newRegion->heights, sizeof(newRegion->heights));
-                        // 清理旧版本全 0 污染：未探索像素 (a < 10) 强制置为 HEIGHT_UNKNOWN
-                        for (int i = 0; i < REGION_SIZE * REGION_SIZE; ++i) {
-                            if (newRegion->colors[i * 4 + 3] < 10) {
-                                newRegion->heights[i] = HEIGHT_UNKNOWN;
-                            }
-                        }
-                    }
-                    // [新增] 生物群系段（colors+heights 之后）
-                    ReadBiomeSection(in, *newRegion, fileSize,
-                                     (std::streamoff)(sizeof(newRegion->colors) + sizeof(newRegion->heights)));
-                }
+                LoadRegionFromFile(filePath, *newRegion, IsCaveHash(hash));
                 newRegion->textureDirty = true;
 
                 {
@@ -520,24 +645,7 @@ namespace MapCacheManager {
                     RegionData* newRegion = new RegionData();
                     std::string dir = g_cacheDir + GetRegionSubdir(isCave);
                     std::string filePath = dir + "region_" + std::to_string(rx) + "_" + std::to_string(rz) + ".bin";
-                    std::ifstream in(filePath, std::ios::binary | std::ios::ate);
-                    if (in) {
-                        auto fileSize = in.tellg();
-                        in.seekg(0, std::ios::beg);
-                        in.read((char*)newRegion->colors, sizeof(newRegion->colors));
-                        if (fileSize >= (std::streamoff)(sizeof(newRegion->colors) + sizeof(newRegion->heights))) {
-                            in.read((char*)newRegion->heights, sizeof(newRegion->heights));
-                            // 清理旧版本全 0 污染：未探索像素 (a < 10) 强制置为 HEIGHT_UNKNOWN
-                            for (int i = 0; i < REGION_SIZE * REGION_SIZE; ++i) {
-                                if (newRegion->colors[i * 4 + 3] < 10) {
-                                    newRegion->heights[i] = HEIGHT_UNKNOWN;
-                                }
-                            }
-                        }
-                        // [新增] 生物群系段（colors+heights 之后）
-                        ReadBiomeSection(in, *newRegion, fileSize,
-                                         (std::streamoff)(sizeof(newRegion->colors) + sizeof(newRegion->heights)));
-                    }
+                    LoadRegionFromFile(filePath, *newRegion, isCave);
                     newRegion->textureDirty = true;
                     g_loadedRegions[hash] = newRegion;
                 }
@@ -548,35 +656,11 @@ namespace MapCacheManager {
                 float currentY = scanHeights[x][z];
                 int index = (localZ * REGION_SIZE + localX) * 4;
 
-                float northY = currentY;
-                if (z > 0 && scanColors[x][z - 1].a > 0.01f) {
-                    float h = scanHeights[x][z - 1];
-                    if (std::abs(currentY - h) < 64.0f) northY = h;
-                }
-                
-                float westY = currentY;
-                if (x > 0 && scanColors[x - 1][z].a > 0.01f) {
-                    float h = scanHeights[x - 1][z];
-                    if (std::abs(currentY - h) < 64.0f) westY = h;
-                }
-
-                float northWestY = currentY;
-                if (x > 0 && z > 0 && scanColors[x - 1][z - 1].a > 0.01f) {
-                    float h = scanHeights[x - 1][z - 1];
-                    if (std::abs(currentY - h) < 64.0f) northWestY = h;
-                }
-
-                float shade = MapRenderState::ComputeTerrainShading(
-                    currentY, northY, westY, northWestY,
-                    MapRenderState::terrainSlopes,
-                    MapRenderState::terrainDepth,
-                    isCave
-                );
-
-                region->colors[index + 0] = (uint8_t)(std::clamp(c.r * shade, 0.0f, 1.0f) * 255.0f);
-                region->colors[index + 1] = (uint8_t)(std::clamp(c.g * shade, 0.0f, 1.0f) * 255.0f);
-                region->colors[index + 2] = (uint8_t)(std::clamp(c.b * shade, 0.0f, 1.0f) * 255.0f);
-                region->colors[index + 3] = (uint8_t)(c.a * 255.0f);
+                // 核心修复：region->colors 严格存储无阴影的基础原始颜色，杜绝保存与重载过程中的光影衰减循环
+                region->colors[index + 0] = (uint8_t)(std::clamp(c.r, 0.0f, 1.0f) * 255.0f);
+                region->colors[index + 1] = (uint8_t)(std::clamp(c.g, 0.0f, 1.0f) * 255.0f);
+                region->colors[index + 2] = (uint8_t)(std::clamp(c.b, 0.0f, 1.0f) * 255.0f);
+                region->colors[index + 3] = (uint8_t)(std::clamp(c.a, 0.0f, 1.0f) * 255.0f);
 
                 // [地表Y缓存] 记录此列的地表高度，供未加载区域传送时查询
                 int heightIndex = localZ * REGION_SIZE + localX;
@@ -584,6 +668,121 @@ namespace MapCacheManager {
 
                 region->dirty = true;
                 region->textureDirty = true;
+            }
+        }
+    }
+
+    // ==========================================
+    // [动态光影核心] 准备 GPU 纹理或 PNG 导出时即时计算 3D 浮雕与高低深度光影，
+    // 杜绝将光影烘焙入磁盘与内存缓存导致的递归衰减黑化问题
+    // ==========================================
+    static void ShadeRegionBuffer(const RegionData* region, uint8_t* outBuffer, int rx, int rz, bool isCave) {
+        if (!region || !outBuffer) return;
+
+        const RegionData* northRegion = nullptr;
+        const RegionData* westRegion = nullptr;
+        const RegionData* northWestRegion = nullptr;
+
+        auto itN = g_loadedRegions.find(GetRegionHash(rx, rz - 1, isCave));
+        if (itN != g_loadedRegions.end()) northRegion = itN->second;
+
+        auto itW = g_loadedRegions.find(GetRegionHash(rx - 1, rz, isCave));
+        if (itW != g_loadedRegions.end()) westRegion = itW->second;
+
+        auto itNW = g_loadedRegions.find(GetRegionHash(rx - 1, rz - 1, isCave));
+        if (itNW != g_loadedRegions.end()) northWestRegion = itNW->second;
+
+        int slopeMode = MapRenderState::terrainSlopes;
+        bool depth = MapRenderState::terrainDepth;
+
+        for (int z = 0; z < REGION_SIZE; ++z) {
+            for (int x = 0; x < REGION_SIZE; ++x) {
+                int idx = (z * REGION_SIZE + x) * 4;
+                uint8_t a = region->colors[idx + 3];
+                if (a < 10) {
+                    outBuffer[idx + 0] = 0;
+                    outBuffer[idx + 1] = 0;
+                    outBuffer[idx + 2] = 0;
+                    outBuffer[idx + 3] = 0;
+                    continue;
+                }
+
+                int hIdx = z * REGION_SIZE + x;
+                int16_t h = region->heights[hIdx];
+                float currentY = (h != HEIGHT_UNKNOWN) ? (float)h : 64.0f;
+
+                float northY = currentY;
+                if (z > 0) {
+                    int nIdx = (z - 1) * REGION_SIZE + x;
+                    if (region->colors[nIdx * 4 + 3] >= 10 && region->heights[nIdx] != HEIGHT_UNKNOWN) {
+                        float nh = (float)region->heights[nIdx];
+                        if (std::abs(currentY - nh) < 64.0f) northY = nh;
+                    }
+                } else if (northRegion) {
+                    int nIdx = (REGION_SIZE - 1) * REGION_SIZE + x;
+                    if (northRegion->colors[nIdx * 4 + 3] >= 10 && northRegion->heights[nIdx] != HEIGHT_UNKNOWN) {
+                        float nh = (float)northRegion->heights[nIdx];
+                        if (std::abs(currentY - nh) < 64.0f) northY = nh;
+                    }
+                }
+
+                float westY = currentY;
+                if (x > 0) {
+                    int wIdx = z * REGION_SIZE + (x - 1);
+                    if (region->colors[wIdx * 4 + 3] >= 10 && region->heights[wIdx] != HEIGHT_UNKNOWN) {
+                        float wh = (float)region->heights[wIdx];
+                        if (std::abs(currentY - wh) < 64.0f) westY = wh;
+                    }
+                } else if (westRegion) {
+                    int wIdx = z * REGION_SIZE + (REGION_SIZE - 1);
+                    if (westRegion->colors[wIdx * 4 + 3] >= 10 && westRegion->heights[wIdx] != HEIGHT_UNKNOWN) {
+                        float wh = (float)westRegion->heights[wIdx];
+                        if (std::abs(currentY - wh) < 64.0f) westY = wh;
+                    }
+                }
+
+                float northWestY = currentY;
+                if (z > 0 && x > 0) {
+                    int nwIdx = (z - 1) * REGION_SIZE + (x - 1);
+                    if (region->colors[nwIdx * 4 + 3] >= 10 && region->heights[nwIdx] != HEIGHT_UNKNOWN) {
+                        float nwh = (float)region->heights[nwIdx];
+                        if (std::abs(currentY - nwh) < 64.0f) northWestY = nwh;
+                    }
+                } else if (z == 0 && x > 0) {
+                    if (northRegion) {
+                        int nwIdx = (REGION_SIZE - 1) * REGION_SIZE + (x - 1);
+                        if (northRegion->colors[nwIdx * 4 + 3] >= 10 && northRegion->heights[nwIdx] != HEIGHT_UNKNOWN) {
+                            float nwh = (float)northRegion->heights[nwIdx];
+                            if (std::abs(currentY - nwh) < 64.0f) northWestY = nwh;
+                        }
+                    }
+                } else if (z > 0 && x == 0) {
+                    if (westRegion) {
+                        int nwIdx = (z - 1) * REGION_SIZE + (REGION_SIZE - 1);
+                        if (westRegion->colors[nwIdx * 4 + 3] >= 10 && westRegion->heights[nwIdx] != HEIGHT_UNKNOWN) {
+                            float nwh = (float)westRegion->heights[nwIdx];
+                            if (std::abs(currentY - nwh) < 64.0f) northWestY = nwh;
+                        }
+                    }
+                } else if (z == 0 && x == 0) {
+                    if (northWestRegion) {
+                        int nwIdx = (REGION_SIZE - 1) * REGION_SIZE + (REGION_SIZE - 1);
+                        if (northWestRegion->colors[nwIdx * 4 + 3] >= 10 && northWestRegion->heights[nwIdx] != HEIGHT_UNKNOWN) {
+                            float nwh = (float)northWestRegion->heights[nwIdx];
+                            if (std::abs(currentY - nwh) < 64.0f) northWestY = nwh;
+                        }
+                    }
+                }
+
+                float shade = MapRenderState::ComputeTerrainShading(
+                    currentY, northY, westY, northWestY,
+                    slopeMode, depth, isCave
+                );
+
+                outBuffer[idx + 0] = (uint8_t)(std::clamp((region->colors[idx + 0] / 255.0f) * shade, 0.0f, 1.0f) * 255.0f);
+                outBuffer[idx + 1] = (uint8_t)(std::clamp((region->colors[idx + 1] / 255.0f) * shade, 0.0f, 1.0f) * 255.0f);
+                outBuffer[idx + 2] = (uint8_t)(std::clamp((region->colors[idx + 2] / 255.0f) * shade, 0.0f, 1.0f) * 255.0f);
+                outBuffer[idx + 3] = a;
             }
         }
     }
@@ -598,7 +797,10 @@ namespace MapCacheManager {
         } else {
             RegionData* region = it->second;
             if (region && (forceCopy || region->textureDirty)) {
-                std::memcpy(outBuffer, region->colors, REGION_SIZE * REGION_SIZE * 4);
+                int rx, rz;
+                DecodeRegionHash(hash, rx, rz);
+                bool isCave = IsCaveHash(hash);
+                ShadeRegionBuffer(region, outBuffer, rx, rz, isCave);
                 region->textureDirty = false;
                 return true;
             }
@@ -621,31 +823,16 @@ namespace MapCacheManager {
 
         auto it = g_loadedRegions.find(hash);
         if (it == g_loadedRegions.end() || it->second == nullptr) {
-            // 如果磁盘存在该 region 文件，尝试直接同步加载，确保查询高度时不因异步排队未完成而丢失
             std::string dir = g_cacheDir + GetRegionSubdir(isCave);
             std::string filePath = dir + "region_" + std::to_string(rx) + "_" + std::to_string(rz) + ".bin";
-            std::ifstream in(filePath, std::ios::binary | std::ios::ate);
-            if (in) {
-                auto fileSize = in.tellg();
-                in.seekg(0, std::ios::beg);
-                RegionData* newRegion = (it != g_loadedRegions.end() && it->second) ? it->second : new RegionData();
-                in.read((char*)newRegion->colors, sizeof(newRegion->colors));
-                if (fileSize >= (std::streamoff)(sizeof(newRegion->colors) + sizeof(newRegion->heights))) {
-                    in.read((char*)newRegion->heights, sizeof(newRegion->heights));
-                    // 清理旧版本全 0 污染：未探索像素 (a < 10) 强制置为 HEIGHT_UNKNOWN
-                    for (int i = 0; i < REGION_SIZE * REGION_SIZE; ++i) {
-                        if (newRegion->colors[i * 4 + 3] < 10) {
-                            newRegion->heights[i] = HEIGHT_UNKNOWN;
-                        }
-                    }
-                }
-                ReadBiomeSection(in, *newRegion, fileSize,
-                                 (std::streamoff)(sizeof(newRegion->colors) + sizeof(newRegion->heights)));
+            RegionData* newRegion = (it != g_loadedRegions.end() && it->second) ? it->second : new RegionData();
+            if (LoadRegionFromFile(filePath, *newRegion, isCave)) {
                 newRegion->textureDirty = true;
                 g_loadedRegions[hash] = newRegion;
                 it = g_loadedRegions.find(hash);
             } else {
                 if (it == g_loadedRegions.end()) {
+                    delete newRegion;
                     g_loadedRegions[hash] = nullptr;
                     g_loadQueue.push_back(hash);
                 }
@@ -881,26 +1068,13 @@ namespace MapCacheManager {
                 if (!region) {
                     std::string dir = g_cacheDir + GetRegionSubdir(isCave);
                     std::string filePath = dir + "region_" + std::to_string(rx) + "_" + std::to_string(rz) + ".bin";
-                    std::ifstream in(filePath, std::ios::binary | std::ios::ate);
-                    if (in) {
-                        auto fileSize = in.tellg();
-                        if (fileSize >= (std::streamoff)sizeof(RegionData::colors)) {
-                            RegionData* newRegion = new RegionData();
-                            in.seekg(0, std::ios::beg);
-                            in.read((char*)newRegion->colors, sizeof(newRegion->colors));
-                            if (fileSize >= (std::streamoff)(sizeof(newRegion->colors) + sizeof(newRegion->heights))) {
-                                in.read((char*)newRegion->heights, sizeof(newRegion->heights));
-                                for (int i = 0; i < REGION_SIZE * REGION_SIZE; ++i) {
-                                    if (newRegion->colors[i * 4 + 3] < 10) {
-                                        newRegion->heights[i] = HEIGHT_UNKNOWN;
-                                    }
-                                }
-                            }
-                            ReadBiomeSection(in, *newRegion, fileSize, sizeof(newRegion->colors) + sizeof(newRegion->heights));
-                            newRegion->textureDirty = true;
-                            g_loadedRegions[hash] = newRegion;
-                            region = newRegion;
-                        }
+                    RegionData* newRegion = new RegionData();
+                    if (LoadRegionFromFile(filePath, *newRegion, isCave)) {
+                        newRegion->textureDirty = true;
+                        g_loadedRegions[hash] = newRegion;
+                        region = newRegion;
+                    } else {
+                        delete newRegion;
                     }
                 }
 
@@ -940,28 +1114,33 @@ namespace MapCacheManager {
                             float currentY = (h != HEIGHT_UNKNOWN) ? (float)h : 64.0f;
                             outHeights[arrX][arrZ] = currentY;
 
-                            // 逆运算还原未阴影基础色，供 BakingWorkerFunc 统一动态光影渲染
-                            float northY = currentY, westY = currentY;
-                            if (localZ > 0) {
-                                int16_t nh = region->heights[(localZ - 1) * REGION_SIZE + localX];
-                                if (nh != HEIGHT_UNKNOWN && std::abs(currentY - (float)nh) < 64.0f) northY = (float)nh;
-                            }
-                            if (localX > 0) {
-                                int16_t wh = region->heights[localZ * REGION_SIZE + (localX - 1)];
-                                if (wh != HEIGHT_UNKNOWN && std::abs(currentY - (float)wh) < 64.0f) westY = (float)wh;
-                            }
-                            float shade = std::clamp(1.0f + (currentY - northY) * 0.15f + (currentY - westY) * 0.15f, 0.65f, 1.25f);
-                            float unshadedR = std::clamp((r / 255.0f) / shade, 0.0f, 1.0f);
-                            float unshadedG = std::clamp((g / 255.0f) / shade, 0.0f, 1.0f);
-                            float unshadedB = std::clamp((b / 255.0f) / shade, 0.0f, 1.0f);
-
-                            outColors[arrX][arrZ] = mce::Color(unshadedR, unshadedG, unshadedB, a / 255.0f);
+                            // 缓存严格存储未阴影基础色，直接输出纯净色彩供 BakingWorkerFunc 统一动态光影渲染
+                            outColors[arrX][arrZ] = mce::Color(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
 
                             if (outTextureData) {
+                                float northY = currentY, westY = currentY, northWestY = currentY;
+                                if (localZ > 0) {
+                                    int16_t nh = region->heights[(localZ - 1) * REGION_SIZE + localX];
+                                    if (nh != HEIGHT_UNKNOWN && std::abs(currentY - (float)nh) < 64.0f) northY = (float)nh;
+                                }
+                                if (localX > 0) {
+                                    int16_t wh = region->heights[localZ * REGION_SIZE + (localX - 1)];
+                                    if (wh != HEIGHT_UNKNOWN && std::abs(currentY - (float)wh) < 64.0f) westY = (float)wh;
+                                }
+                                if (localX > 0 && localZ > 0) {
+                                    int16_t nwh = region->heights[(localZ - 1) * REGION_SIZE + (localX - 1)];
+                                    if (nwh != HEIGHT_UNKNOWN && std::abs(currentY - (float)nwh) < 64.0f) northWestY = (float)nwh;
+                                }
+                                float shade = MapRenderState::ComputeTerrainShading(
+                                    currentY, northY, westY, northWestY,
+                                    MapRenderState::terrainSlopes,
+                                    MapRenderState::terrainDepth,
+                                    isCave
+                                );
                                 int texIdx = (arrZ * MAP_DATA_SIZE + arrX) * 4;
-                                outTextureData[texIdx + 0] = r;
-                                outTextureData[texIdx + 1] = g;
-                                outTextureData[texIdx + 2] = b;
+                                outTextureData[texIdx + 0] = (uint8_t)(std::clamp((r / 255.0f) * shade, 0.0f, 1.0f) * 255.0f);
+                                outTextureData[texIdx + 1] = (uint8_t)(std::clamp((g / 255.0f) * shade, 0.0f, 1.0f) * 255.0f);
+                                outTextureData[texIdx + 2] = (uint8_t)(std::clamp((b / 255.0f) * shade, 0.0f, 1.0f) * 255.0f);
                                 outTextureData[texIdx + 3] = a;
                             }
                         }
@@ -1108,7 +1287,7 @@ namespace MapCacheManager {
 
         int viewDim = MapRenderState::GetEffectiveViewDimensionId();
         int currentDim = MapRenderState::currentDimensionId;
-        bool isCave = (viewDim == 1) || (viewDim == 0 && currentDim == 0 && MapRenderState::g_caveModeActive);
+        bool isCave = (viewDim == 1) || (viewDim == 0 && MapRenderState::bigMapOverworldCave);
 
         if (s_hasCachedPreview && !s_exportPreviewDirty &&
             MapRenderState::exportForceFullMap == s_lastForceFull &&
@@ -1319,7 +1498,7 @@ namespace MapCacheManager {
 
             int viewDim = MapRenderState::GetEffectiveViewDimensionId();
             int currentDim = MapRenderState::currentDimensionId;
-            bool isCave = (viewDim == 1) || (viewDim == 0 && currentDim == 0 && MapRenderState::g_caveModeActive);
+            bool isCave = (viewDim == 1) || (viewDim == 0 && MapRenderState::bigMapOverworldCave);
             bool forceFull = MapRenderState::exportForceFullMap;
             bool multipleImages = MapRenderState::exportMultipleImages;
             bool openFolder = MapRenderState::exportOpenFolder;
@@ -1351,7 +1530,8 @@ namespace MapCacheManager {
                             ExportRegionItem item;
                             item.rx = rx;
                             item.rz = rz;
-                            item.colors.assign(pair.second->colors, pair.second->colors + sizeof(pair.second->colors));
+                            item.colors.resize(REGION_SIZE * REGION_SIZE * 4, 0);
+                            ShadeRegionBuffer(pair.second, item.colors.data(), rx, rz, isCave);
                             regions.push_back(std::move(item));
                         }
                         seenHashes[pair.first] = true;
@@ -1385,18 +1565,18 @@ namespace MapCacheManager {
                         uint64_t hash = GetRegionHash(rx, rz, isCave);
                         if (seenHashes.find(hash) != seenHashes.end()) continue;
 
-                        std::ifstream in(entry.path(), std::ios::binary);
-                        if (in) {
-                            ExportRegionItem item;
-                            item.rx = rx;
-                            item.rz = rz;
-                            item.colors.resize(REGION_SIZE * REGION_SIZE * 4, 0);
-                            in.read((char*)item.colors.data(), item.colors.size());
+                        RegionData tempRegion;
+                        if (LoadRegionFromFile(entry.path().string(), tempRegion, isCave)) {
                             bool hasPixel = false;
                             for (int i = 0; i < REGION_SIZE * REGION_SIZE; ++i) {
-                                if (item.colors[i * 4 + 3] >= 10) { hasPixel = true; break; }
+                                if (tempRegion.colors[i * 4 + 3] >= 10) { hasPixel = true; break; }
                             }
                             if (hasPixel) {
+                                ExportRegionItem item;
+                                item.rx = rx;
+                                item.rz = rz;
+                                item.colors.resize(REGION_SIZE * REGION_SIZE * 4, 0);
+                                ShadeRegionBuffer(&tempRegion, item.colors.data(), rx, rz, isCave);
                                 regions.push_back(std::move(item));
                             }
                         }

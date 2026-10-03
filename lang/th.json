@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "มิติที่กำลังดู",
     "DIM_CURRENT_HINT": "(มิติปัจจุบัน)",
     "DIM_SWITCH_TOOLTIP": "สลับไปยังแผนที่โลก %s",
+    "DIM_CAVE": "ถ้ำ",
+    "DIM_SWITCH_TOOLTIP_CAVE": "สลับไปยังแผนที่ถ้ำโอเวอร์เวิลด์",
     "DIM_LINKED_PLAYER_POS": "พิกัดที่เชื่อมโยง: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "ไอคอนสิ่งมีชีวิต (แผนที่ย่อและใหญ่)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "ไอคอนเอนทิตี: ปิด (คลิกเพื่อเปิด)",

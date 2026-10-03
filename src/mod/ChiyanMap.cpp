@@ -109,6 +109,10 @@ bool ChiyanMap::load() {
 }
 
 bool ChiyanMap::enable() {
+    // [性能优化] 提前在模组启用阶段完成 DXGI 和输入底层挂钩，
+    // 避免将耗时初始化推迟到主菜单首次渲染帧导致 ~1s 卡顿 (Stutter)
+    initDX11Hook();
+
     g_mouseListener = ll::event::EventBus::getInstance().emplaceListener<ll::event::input::MouseInputEvent>(
         [](ll::event::input::MouseInputEvent& ev) {
             if (MapRenderState::g_isShuttingDown.load()) return;

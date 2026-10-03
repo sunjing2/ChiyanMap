@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Chiều không gian đang xem",
     "DIM_CURRENT_HINT": "(Chiều không gian hiện tại)",
     "DIM_SWITCH_TOOLTIP": "Chuyển sang bản đồ %s",
+    "DIM_CAVE": "Hang động",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Chuyển sang bản đồ hang động thế giới thực",
     "DIM_LINKED_PLAYER_POS": "Tọa độ liên kết: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Biểu tượng thực thể (Bản đồ nhỏ & lớn)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Biểu tượng thực thể: TẮT (Nhấp để bật)",

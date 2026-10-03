@@ -235,6 +235,8 @@
     "VIEWING_DIMENSION": "Dimensión visible",
     "DIM_CURRENT_HINT": "(Dimensión actual)",
     "DIM_SWITCH_TOOLTIP": "Cambiar al mapa de %s",
+    "DIM_CAVE": "Cuevas",
+    "DIM_SWITCH_TOOLTIP_CAVE": "Cambiar al mapa de cuevas del mundo principal",
     "DIM_LINKED_PLAYER_POS": "Pos vinculada: X: %d, Z: %d",
     "HOTKEY_HOLD_ENTITIES": "Iconos de entidades (Minimapa y mapa)",
     "BIGMAP_ENTITIES_TOGGLE_ON": "Iconos de entidades: DESACTIVADO (Clic para activar)",

@@ -923,7 +923,7 @@ inline void getBiomeTints(std::string const& biomeName, mce::Color& grass, mce::
         grass   = mce::Color(0.671f, 0.651f, 0.310f, 1.0f);
         foliage = mce::Color(0.671f, 0.651f, 0.310f, 1.0f);
     }
-    // === Xaero / 原版 26.2 生物群系补充 ===
+    // === 原版 26.2 生物群系补充 ===
     else if (lower.find("flower_forest") != std::string::npos) {
         grass   = mce::Color(0.475f, 0.753f, 0.353f, 1.0f);
         foliage = mce::Color(0.349f, 0.682f, 0.188f, 1.0f);
@@ -988,7 +988,7 @@ inline void getBiomeTints(std::string const& biomeName, mce::Color& grass, mce::
 
 // =========================================================================
 // [群系地面与水体平滑过渡算法 (Biome Color Blending)]
-// 基于 Xaero / 原版 26.2 机制，连续双线性插值消除 4x4 生物群系单元阶梯锯齿
+// 基于连续双线性插值消除 4x4 生物群系单元阶梯锯齿
 // =========================================================================
 
 inline bool IsBiomeTintedBlock(std::string const& name) noexcept {
@@ -1173,7 +1173,7 @@ inline mce::Color getBlockColor(std::string const& rawName, mce::Color grassCol,
     }
 
     // =========================================================================
-    // [1176 全量方块像素级精准色彩查找表 - 融合 Xaero 地图材质采样与基岩版特调]
+    // [1176 全量方块像素级精准色彩查找表 - 融合地图材质采样与基岩版特调]
     // =========================================================================
     static const std::unordered_map<std::string, mce::Color> s_exactBlockColors = {
         {"acacia_button", mce::Color(0.706f, 0.384f, 0.212f, 1.00f)},
@@ -3269,7 +3269,7 @@ inline bool SafeGetBlockName(BlockSource& region, int x, int y, int z, std::stri
 }
 
 // ==================== 洞穴材质判定 (汲取 0.3.4 优势: Material枚举精准识别通道/水体) ====================
-// Xaero 风格洞穴分层投影：所有列从同一个 Top Y 向下解析，避免相邻列跳到不同高度层。
+// 洞穴分层投影：所有列从同一个 Top Y 向下解析，避免相邻列跳到不同高度层。
 inline constexpr int kCaveLayerTopOffset = 3;
 inline constexpr int kCaveLayerAirSearchDepth = 64;
 inline constexpr int kCaveLayerFloorSearchDepth = 64;
@@ -3332,10 +3332,10 @@ inline bool IsCavePassableBlock(Block const& block) {
     return false;
 }
 
-// ==================== 洞穴地图系统 (Xaero's Cave Map 1:1 复刻) ====================
+// ==================== 洞穴地图系统 ====================
 
 // [洞穴辅助] 判断方块是否为"覆盖层"（透明/非实心），在洞穴列扫描中跳过
-// 对应 Xaero's MapWriter.isInvisible: air, liquid, glass, torch, grass, flowers, leaves
+// 忽略空气、液体、玻璃等不可见/穿透方块: air, liquid, glass, torch, grass, flowers, leaves
 inline bool IsCaveOverlayBlockName(std::string const& rawName) noexcept {
     std::string name = rawName;
     for (char& c : name) if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
@@ -3546,7 +3546,7 @@ inline bool DetectCaveStart(BlockSource& region, int playerX, int playerY, int p
 }
 
 // [洞穴亮度计算] 深度衰减亮度公式
-// 对应 Xaero's MapPixel.getPixelColours 中的深度衰减:
+// 深度衰减亮度参数:
 //   legible=false (非清晰): finalBrightness = 0.375 + 0.625 * (1 - depth/caveDepth)
 //   legible=true (清晰): finalBrightness = 1.0 (全亮, 由深度因子直接乘RGB)
 // 参数: depth = 从 caveStart 向下的层数, caveDepth = 最大扫描深度
@@ -3560,7 +3560,7 @@ inline float ComputeCaveBrightness(int depth, int caveDepth) noexcept {
 }
 
 // [洞穴列扫描] 扫描单个 x,z 列, 从 startY 向下查找第一个紧邻空气的实心方块
-// 对应 Xaero's MapWriter.loadPixel: 从 caveStart 向下扫描到 caveStart - caveDepth
+// 从 caveStart 向下扫描到 caveStart - caveDepth
 // 核心逻辑: 只渲染洞穴空腔下方的方块 (洞穴地板/墙壁), 纯石头区域返回 false (透明)
 // 液体方块 (熔岩/水) 在空气下方时返回, 由 GetCaveLiquidColor 应用饱和色 (不受深度衰减)
 // 参数: region, x, z, startY(扫描起点Y), caveDepth(扫描深度)
@@ -3635,7 +3635,7 @@ inline bool ScanColumnCave(BlockSource& region, int x, int z, int startY, int ca
 }
 
 // [洞穴特殊方块颜色] 液体方块在洞穴中使用饱和颜色 (不受深度衰减)
-// 对应 Xaero's MapPixel: 液体通过 fluidToBlock 转换, 颜色保持饱和
+// 液体通过转换保持饱和色彩
 inline mce::Color GetCaveLiquidColor(std::string const& name) noexcept {
     if (name.find("lava") != std::string::npos) return mce::Color(1.0f, 0.40f, 0.05f, 1.0f);
     if (name.find("water") != std::string::npos) return mce::Color(0.15f, 0.45f, 0.90f, 1.0f);
@@ -4490,7 +4490,7 @@ LL_TYPE_INSTANCE_HOOK(
                 } catch (...) {}
             }
 
-            // [Xaero 特性] 靠近 6 个方块内自动清除到达过的死亡地点 (5秒免删安全期)
+            // 靠近 6 个方块内自动清除到达过的死亡地点 (5秒免删安全期)
             if (MapRenderState::autoRemoveDeathpoints) {
                 long long nowSec = std::chrono::duration_cast<std::chrono::seconds>(
                     std::chrono::system_clock::now().time_since_epoch()
@@ -5548,12 +5548,12 @@ LL_TYPE_INSTANCE_HOOK(
             }
         }
 
-        // ==================== 洞穴地图检测 (Xaero's Cave Map 1:1 复刻) ====================
+        // ==================== 洞穴地图检测 ====================
         // 每帧检测玩家是否在地下洞穴中, 设置 g_caveModeActive 供渲染层使用
         int effectiveCaveType = MapRenderState::g_caveModeType;
 
         // [下界地图] 下界无天空光照 (hasSkylight=false), 永远视为洞穴模式
-        // 对应 Xaero's: ambientLight < 0.25 且非末地 → 启用 cave lighting
+        // 当 ambientLight < 0.25 且非末地 → 启用洞穴光照模式
         if (MapRenderState::currentDimensionId == 1) {
             MapRenderState::g_caveModeActive = true;
             MapRenderState::g_caveStartY = 120;  // 下界天花板以下, 避开基岩层
@@ -5650,7 +5650,7 @@ LL_TYPE_INSTANCE_HOOK(
         }
 
         // [洞穴扫描] 玩家在地下且洞穴模式启用时, 执行洞穴列扫描代替地表扫描
-        // 对应 Xaero's MapWriter.writeChunk: 从 caveStart 向下扫描 caveDepth 格
+        // 从 caveStart 向下扫描 caveDepth 格
         if (g_isScanning && MapRenderState::g_caveModeActive && (effectiveCaveType != 0 || MapRenderState::currentDimensionId == 1)) {
             try {
                 BlockSource* regionPtr = this->getRegion();
